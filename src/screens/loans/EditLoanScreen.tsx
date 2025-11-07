@@ -1,36 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, TextInput, Button, SegmentedButtons, Chip } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { Text, TextInput, Button, SegmentedButtons, Chip, Card } from 'react-native-paper';
+import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
 import { InterestType, CompoundingFrequency } from '../../types';
-import { validateLoanData, calculateSimpleInterest, calculateCompoundInterest } from '../../utils/calculations';
+import { validateLoanData, calculateSimpleInterest, calculateCompoundInterest, formatCurrency } from '../../utils/calculations';
 import { sanitizeLoanData } from '../../utils/sanitize';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
+import { colors, typography, spacing, borderRadius } from '../../theme';
 
+type EditLoanRouteProp = RouteProp<RootStackParamList, 'EditLoan'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-export default function CreateLoanScreen() {
+export default function EditLoanScreen() {
+  const route = useRoute<EditLoanRouteProp>();
   const navigation = useNavigation<NavigationProp>();
-  const { createLoan } = useLoanStore();
+  const { loanId } = route.params;
+  
+  const { loans, updateLoan } = useLoanStore();
   const { appUser } = useAuthStore();
+  
+  const loan = loans.find((l) => l.id === loanId);
 
-  const [isUserLender, setIsUserLender] = useState(true);
-  const [lenderName, setLenderName] = useState(appUser?.full_name || '');
-  const [borrowerName, setBorrowerName] = useState('');
-  const [principalAmount, setPrincipalAmount] = useState('');
-  const [startDate, setStartDate] = useState<Date>(new Date());
-  const [dueDate, setDueDate] = useState<Date | null>(null);
-  const [interestType, setInterestType] = useState<InterestType>('none');
-  const [interestRate, setInterestRate] = useState('');
-  const [compoundingFrequency, setCompoundingFrequency] = useState<CompoundingFrequency>('monthly');
-  const [notes, setNotes] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [isUserLender, setIsUserLender] = useState(loan?.is_user_lender ?? true);
+  const [lenderName, setLenderName] = useState(loan?.lender_name || '');
+  const [borrowerName, setBorrowerName] = useState(loan?.borrower_name || '');
+  const [principalAmount, setPrincipalAmount] = useState(loan?.principal_amount.toString() || '');
+  const [startDate, setStartDate] = useState<Date>(loan ? new Date(loan.start_date) : new Date());
+  const [dueDate, setDueDate] = useState<Date | null>(loan ? new Date(loan.due_date) : null);
+  const [interestType, setInterestType] = useState<InterestType>(loan?.interest_type || 'none');
+  const [interestRate, setInterestRate] = useState(loan?.interest_rate?.toString() || '');
+  const [compoundingFrequency, setCompoundingFrequency] = useState<CompoundingFrequency>(
+    loan?.compounding_frequency || 'monthly'
+  );
+  const [notes, setNotes] = useState(loan?.notes || '');
+  const [tags, setTags] = useState<string[]>(loan?.tags || []);
   const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  if (!loan) {
+    return (
+      <View style={styles.container}>
+        <Text>Loan not found</Text>
+      </View>
+    );
+  }
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -46,7 +63,7 @@ export default function CreateLoanScreen() {
   const calculatePreview = () => {
     const principal = parseFloat(principalAmount);
     const rate = parseFloat(interestRate);
-
+    
     if (!principal || !dueDate) return null;
     if (interestType === 'none') {
       return {
@@ -61,7 +78,7 @@ export default function CreateLoanScreen() {
     let interest = 0;
     const startDateStr = startDate.toISOString();
     const dueDateStr = dueDate.toISOString();
-
+    
     if (interestType === 'simple') {
       interest = calculateSimpleInterest(principal, rate, startDateStr, dueDateStr);
     } else if (interestType === 'compound') {
@@ -92,7 +109,6 @@ export default function CreateLoanScreen() {
       compounding_frequency: interestType === 'compound' ? compoundingFrequency : undefined,
       notes: notes || undefined,
       tags: tags.length > 0 ? tags : undefined,
-      status: 'active' as const,
       is_user_lender: isUserLender,
     };
 
@@ -106,41 +122,26 @@ export default function CreateLoanScreen() {
       return;
     }
 
-    // Warn if amount is very large
-    if (loanData.principal_amount > 100000) {
-      Alert.alert(
-        'Large Amount Warning',
-        `You're creating a loan for ${loanData.principal_amount.toLocaleString()}. Is this correct?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => submitLoan(loanData) },
-        ]
-      );
-      return;
-    }
-
-    await submitLoan(loanData);
-  };
-
-  const submitLoan = async (loanData: any) => {
     try {
       setLoading(true);
-      await createLoan(loanData);
-      Alert.alert('Success', 'Loan created successfully');
+      await updateLoan(loanId, loanData);
+      Alert.alert('Success', 'Loan updated successfully');
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create loan');
+      Alert.alert('Error', error.message || 'Failed to update loan');
     } finally {
       setLoading(false);
     }
   };
 
   const preview = calculatePreview();
+  const currency = appUser?.settings?.currency || 'USD';
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Role</Text>
+        
         <SegmentedButtons
           value={isUserLender ? 'lender' : 'borrower'}
           onValueChange={(value) => setIsUserLender(value === 'lender')}
@@ -247,49 +248,46 @@ export default function CreateLoanScreen() {
           maxLength={500}
         />
 
+        <Text style={styles.label}>Tags</Text>
         <View style={styles.tagInputContainer}>
           <TextInput
-            label="Add Tag"
             value={tagInput}
             onChangeText={setTagInput}
             mode="outlined"
-            style={styles.tagInput}
+            style={[styles.input, styles.tagInput]}
+            placeholder="Add a tag"
           />
-          <Button mode="outlined" onPress={handleAddTag} style={styles.addTagButton}>
+          <Button mode="contained" onPress={handleAddTag} style={styles.addTagButton}>
             Add
           </Button>
         </View>
 
-        {tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {tags.map((tag) => (
-              <Chip
-                key={tag}
-                onClose={() => handleRemoveTag(tag)}
-                style={styles.tag}
-              >
-                {tag}
-              </Chip>
-            ))}
-          </View>
-        )}
+        <View style={styles.tagsContainer}>
+          {tags.map((tag) => (
+            <Chip key={tag} onClose={() => handleRemoveTag(tag)} style={styles.tag}>
+              {tag}
+            </Chip>
+          ))}
+        </View>
 
         {preview && (
-          <View style={styles.previewContainer}>
-            <Text style={styles.previewTitle}>Preview</Text>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Principal:</Text>
-              <Text style={styles.previewValue}>${preview.principal.toFixed(2)}</Text>
-            </View>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>Interest:</Text>
-              <Text style={styles.previewValue}>${preview.interest.toFixed(2)}</Text>
-            </View>
-            <View style={[styles.previewRow, styles.previewTotal]}>
-              <Text style={styles.previewTotalLabel}>Total Due:</Text>
-              <Text style={styles.previewTotalValue}>${preview.total.toFixed(2)}</Text>
-            </View>
-          </View>
+          <Card style={styles.previewCard}>
+            <Card.Content>
+              <Text style={styles.previewTitle}>Loan Summary</Text>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Principal:</Text>
+                <Text style={styles.previewValue}>{formatCurrency(preview.principal, currency)}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Interest:</Text>
+                <Text style={styles.previewValue}>{formatCurrency(preview.interest, currency)}</Text>
+              </View>
+              <View style={[styles.previewRow, styles.previewTotal]}>
+                <Text style={styles.previewTotalLabel}>Total Due:</Text>
+                <Text style={styles.previewTotalValue}>{formatCurrency(preview.total, currency)}</Text>
+              </View>
+            </Card.Content>
+          </Card>
         )}
 
         <Button
@@ -298,8 +296,9 @@ export default function CreateLoanScreen() {
           loading={loading}
           disabled={loading}
           style={styles.submitButton}
+          buttonColor={colors.primary}
         >
-          Create Loan
+          Update Loan
         </Button>
       </View>
     </ScrollView>
@@ -309,92 +308,86 @@ export default function CreateLoanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   content: {
-    padding: 16,
+    padding: spacing.lg,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 12,
+    ...typography.h4,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 12,
-    marginBottom: 8,
+    ...typography.label,
+    marginBottom: spacing.sm,
   },
   input: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   segmentedButtons: {
-    marginBottom: 12,
+    marginBottom: spacing.lg,
   },
   tagInputContainer: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   tagInput: {
     flex: 1,
   },
   addTagButton: {
-    justifyContent: 'center',
+    marginBottom: spacing.md,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   tag: {
-    backgroundColor: '#e3f2fd',
+    marginRight: spacing.xs,
+    marginBottom: spacing.xs,
   },
-  previewContainer: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 16,
-    marginBottom: 16,
+  previewCard: {
+    marginVertical: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primaryLight,
   },
   previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
+    ...typography.h4,
+    marginBottom: spacing.md,
   },
   previewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   previewLabel: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.body1,
+    color: colors.textSecondary,
   },
   previewValue: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  previewTotal: {
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    paddingTop: 8,
-    marginTop: 4,
-  },
-  previewTotalLabel: {
-    fontSize: 16,
+    ...typography.body1,
     fontWeight: '600',
   },
+  previewTotal: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  previewTotalLabel: {
+    ...typography.h4,
+  },
   previewTotalValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6200ee',
+    ...typography.h4,
+    color: colors.primary,
   },
   submitButton: {
-    marginTop: 16,
-    marginBottom: 32,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xxl,
+    borderRadius: borderRadius.md,
   },
 });
 

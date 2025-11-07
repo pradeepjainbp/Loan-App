@@ -10,6 +10,7 @@ import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import LoansListScreen from '../screens/loans/LoansListScreen';
 import LoanDetailScreen from '../screens/loans/LoanDetailScreen';
 import CreateLoanScreen from '../screens/loans/CreateLoanScreen';
+import EditLoanScreen from '../screens/loans/EditLoanScreen';
 import CreateRepaymentScreen from '../screens/repayments/CreateRepaymentScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   LoanDetail: { loanId: string };
   CreateLoan: undefined;
+  EditLoan: { loanId: string };
   CreateRepayment: { loanId: string };
 };
 
@@ -39,28 +41,28 @@ function MainTabs() {
         tabBarInactiveTintColor: '#666',
       }}
     >
-      <Tab.Screen 
-        name="Dashboard" 
+      <Tab.Screen
+        name="Dashboard"
         component={DashboardScreen}
         options={{
           tabBarLabel: 'Dashboard',
-          tabBarIcon: ({ color }) => <></>, // We'll add icons later
+          tabBarIcon: () => <></>, // We'll add icons later
         }}
       />
-      <Tab.Screen 
-        name="Loans" 
+      <Tab.Screen
+        name="Loans"
         component={LoansListScreen}
         options={{
           tabBarLabel: 'Loans',
-          tabBarIcon: ({ color }) => <></>,
+          tabBarIcon: () => <></>,
         }}
       />
-      <Tab.Screen 
-        name="Settings" 
+      <Tab.Screen
+        name="Settings"
         component={SettingsScreen}
         options={{
           tabBarLabel: 'Settings',
-          tabBarIcon: ({ color }) => <></>,
+          tabBarIcon: () => <></>,
         }}
       />
     </Tab.Navigator>
@@ -70,32 +72,49 @@ function MainTabs() {
 export default function AppNavigator() {
   const { user, initialized } = useAuthStore();
 
+  // Add debug logging
+  console.log('AppNavigator - user:', user);
+  console.log('AppNavigator - initialized:', initialized);
+
   if (!initialized) {
     return null; // Or a loading screen
   }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: true }}>
         {!user ? (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
         ) : (
           <>
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen 
-              name="LoanDetail" 
-              component={LoanDetailScreen}
-              options={{ headerShown: true, title: 'Loan Details' }}
+            <Stack.Screen
+              name="MainTabs"
+              component={MainTabs}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="CreateLoan" 
+            <Stack.Screen
+              name="CreateLoan"
               component={CreateLoanScreen}
-              options={{ headerShown: true, title: 'Create Loan' }}
+              options={{ title: 'Create Loan' }}
             />
-            <Stack.Screen 
-              name="CreateRepayment" 
+            <Stack.Screen
+              name="EditLoan"
+              component={EditLoanScreen}
+              options={{ title: 'Edit Loan' }}
+            />
+            <Stack.Screen
+              name="LoanDetail"
+              component={LoanDetailScreen}
+              options={{ title: 'Loan Details' }}
+            />
+            <Stack.Screen
+              name="CreateRepayment"
               component={CreateRepaymentScreen}
-              options={{ headerShown: true, title: 'Record Repayment' }}
+              options={{ title: 'Record Repayment' }}
             />
           </>
         )}

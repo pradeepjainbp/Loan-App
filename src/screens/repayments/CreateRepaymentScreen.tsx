@@ -6,7 +6,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
 import { PaymentMethod } from '../../types';
 import { validateRepaymentData } from '../../utils/calculations';
+import { sanitizeRepaymentData } from '../../utils/sanitize';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import DatePicker from '../../components/DatePicker';
 
 type CreateRepaymentRouteProp = RouteProp<RootStackParamList, 'CreateRepayment'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -21,7 +23,7 @@ export default function CreateRepaymentScreen() {
   const calculation = loan ? getLoanCalculation(loanId) : null;
 
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [transactionReference, setTransactionReference] = useState('');
   const [notes, setNotes] = useState('');
@@ -36,15 +38,19 @@ export default function CreateRepaymentScreen() {
   }
 
   const handleSubmit = async () => {
-    const repaymentData = {
+    const rawRepaymentData = {
       loan_id: loanId,
       payment_amount: parseFloat(paymentAmount),
-      payment_date: new Date(paymentDate).toISOString(),
+      payment_date: paymentDate.toISOString(),
       payment_method: paymentMethod,
       transaction_reference: transactionReference || undefined,
       notes: notes || undefined,
     };
 
+    // Sanitize all user inputs
+    const repaymentData = sanitizeRepaymentData(rawRepaymentData);
+
+    // Validate sanitized data
     const errors = validateRepaymentData(repaymentData, loan, calculation.current_outstanding);
     if (errors.length > 0) {
       Alert.alert('Validation Error', errors.join('\n'));
@@ -55,7 +61,7 @@ export default function CreateRepaymentScreen() {
     if (repaymentData.payment_amount > calculation.current_outstanding) {
       Alert.alert(
         'Warning',
-        `Payment amount (${repaymentData.payment_amount}) exceeds outstanding balance (${calculation.current_outstanding}). Continue?`,
+        `Payment amount ($${repaymentData.payment_amount.toFixed(2)}) exceeds outstanding balance ($${calculation.current_outstanding.toFixed(2)}). Continue?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Continue', onPress: () => submitRepayment(repaymentData) },
@@ -102,13 +108,11 @@ export default function CreateRepaymentScreen() {
           left={<TextInput.Icon icon="currency-usd" />}
         />
 
-        <TextInput
+        <DatePicker
           label="Payment Date *"
           value={paymentDate}
-          onChangeText={setPaymentDate}
-          mode="outlined"
-          style={styles.input}
-          placeholder="YYYY-MM-DD"
+          onChange={setPaymentDate}
+          maxDate={new Date()}
         />
 
         <Text style={styles.label}>Payment Method *</Text>

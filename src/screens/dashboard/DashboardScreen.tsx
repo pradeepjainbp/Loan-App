@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { Text, Card, Title, Button, Chip } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/calculations';
 import { formatDate } from '../../utils/dateUtils';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -29,6 +30,10 @@ export default function DashboardScreen() {
   const currency = appUser?.settings?.currency || 'USD';
   const dateFormat = appUser?.settings?.date_format || 'MM/DD/YYYY';
 
+  // Calculate net balance
+  const netBalance = (dashboardMetrics?.total_lent || 0) - (dashboardMetrics?.total_borrowed || 0);
+  const netBalanceColor = netBalance >= 0 ? colors.netPositive : colors.netNegative;
+
   return (
     <ScrollView
       style={styles.container}
@@ -43,31 +48,54 @@ export default function DashboardScreen() {
         </Text>
       </View>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Redesigned */}
       <View style={styles.summaryContainer}>
-        <Card style={[styles.summaryCard, styles.lentCard]}>
-          <Card.Content>
-            <Text style={styles.summaryLabel}>Total Lent</Text>
-            <Text style={[styles.summaryAmount, styles.lentAmount]}>
+        {/* Total Lent Card */}
+        <Card style={styles.summaryCard}>
+          <Card.Content style={styles.lentCardContent}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardIcon}>💰</Text>
+              <Text style={styles.summaryLabel}>Total Lent</Text>
+            </View>
+            <Text style={[styles.summaryAmount, { color: colors.lent }]}>
               {formatCurrency(dashboardMetrics?.total_lent || 0, currency)}
             </Text>
-          </Card.Content>
-        </Card>
-
-        <Card style={[styles.summaryCard, styles.borrowedCard]}>
-          <Card.Content>
-            <Text style={styles.summaryLabel}>Total Borrowed</Text>
-            <Text style={[styles.summaryAmount, styles.borrowedAmount]}>
-              {formatCurrency(dashboardMetrics?.total_borrowed || 0, currency)}
+            <Text style={styles.summaryContext}>
+              Money you've lent out
             </Text>
           </Card.Content>
         </Card>
 
-        <Card style={[styles.summaryCard, styles.netCard]}>
-          <Card.Content>
-            <Text style={styles.summaryLabel}>Net Balance</Text>
-            <Text style={[styles.summaryAmount, styles.netAmount]}>
-              {formatCurrency(dashboardMetrics?.net_balance || 0, currency)}
+        {/* Total Borrowed Card */}
+        <Card style={styles.summaryCard}>
+          <Card.Content style={styles.borrowedCardContent}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardIcon}>🤝</Text>
+              <Text style={styles.summaryLabel}>Total Borrowed</Text>
+            </View>
+            <Text style={[styles.summaryAmount, { color: colors.borrowed }]}>
+              {formatCurrency(dashboardMetrics?.total_borrowed || 0, currency)}
+            </Text>
+            <Text style={styles.summaryContext}>
+              Money you've borrowed
+            </Text>
+          </Card.Content>
+        </Card>
+
+        {/* Net Balance Card */}
+        <Card style={styles.summaryCard}>
+          <Card.Content style={styles.netCardContent}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardIcon}>📊</Text>
+              <Text style={styles.summaryLabel}>Net Balance</Text>
+            </View>
+            <Text style={[styles.summaryAmount, { color: netBalanceColor }]}>
+              {netBalance >= 0 ? '+' : ''}{formatCurrency(netBalance, currency)}
+            </Text>
+            <Text style={styles.summaryContext}>
+              {netBalance >= 0
+                ? "You're owed more than you owe"
+                : "You owe more than you're owed"}
             </Text>
           </Card.Content>
         </Card>
@@ -79,117 +107,141 @@ export default function DashboardScreen() {
           mode="contained"
           onPress={() => navigation.navigate('CreateLoan')}
           style={styles.actionButton}
+          buttonColor={colors.primary}
           icon="plus"
         >
           Add New Loan
         </Button>
       </View>
 
-      {/* Overdue Loans */}
+      {/* Overdue Loans - Redesigned */}
       {dashboardMetrics?.overdue_loans && dashboardMetrics.overdue_loans.length > 0 && (
-        <Card style={[styles.alertCard, styles.overdueCard]}>
-          <Card.Content>
+        <Card style={styles.alertCard}>
+          <Card.Content style={styles.overdueCardContent}>
             <View style={styles.alertHeader}>
-              <Text style={styles.alertTitle}>Overdue Loans</Text>
-              <Chip style={styles.overdueChip}>
-                {dashboardMetrics.overdue_loans.length}
-              </Chip>
+              <View style={styles.alertTitleContainer}>
+                <Text style={styles.alertIcon}>⚠️</Text>
+                <Text style={styles.alertTitle}>Overdue ({dashboardMetrics.overdue_loans.length})</Text>
+              </View>
             </View>
-            {dashboardMetrics.overdue_loans.slice(0, 3).map((loan) => (
-              <View key={loan.id} style={styles.loanItem}>
+            {dashboardMetrics.overdue_loans.slice(0, 3).map((loan, index) => (
+              <TouchableOpacity
+                key={loan.id}
+                style={styles.loanItem}
+                onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
+              >
                 <View style={styles.loanInfo}>
-                  <Text style={styles.loanName}>
-                    {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
-                  </Text>
-                  <Text style={styles.loanAmount}>
+                  <View style={styles.loanNameContainer}>
+                    <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
+                    <Text style={styles.loanName}>
+                      {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
+                    </Text>
+                  </View>
+                  <Text style={[styles.loanAmount, { color: colors.error }]}>
                     {formatCurrency(loan.principal_amount, currency)}
                   </Text>
                 </View>
                 <Text style={styles.loanDate}>
                   Due: {formatDate(loan.due_date, dateFormat)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
             {dashboardMetrics.overdue_loans.length > 3 && (
               <Button
                 mode="text"
                 onPress={() => navigation.navigate('MainTabs', { screen: 'Loans' })}
                 style={styles.viewAllButton}
+                textColor={colors.error}
               >
-                View All ({dashboardMetrics.overdue_loans.length})
+                View all {dashboardMetrics.overdue_loans.length} →
               </Button>
             )}
           </Card.Content>
         </Card>
       )}
 
-      {/* Loans Due in 7 Days */}
+      {/* Loans Due in 7 Days - Redesigned */}
       {dashboardMetrics?.loans_due_7_days && dashboardMetrics.loans_due_7_days.length > 0 && (
-        <Card style={[styles.alertCard, styles.warningCard]}>
-          <Card.Content>
+        <Card style={styles.alertCard}>
+          <Card.Content style={styles.warningCardContent}>
             <View style={styles.alertHeader}>
-              <Text style={styles.alertTitle}>Due Within 7 Days</Text>
-              <Chip style={styles.warningChip}>
-                {dashboardMetrics.loans_due_7_days.length}
-              </Chip>
+              <View style={styles.alertTitleContainer}>
+                <Text style={styles.alertIcon}>⏰</Text>
+                <Text style={styles.alertTitle}>Due Soon ({dashboardMetrics.loans_due_7_days.length})</Text>
+              </View>
             </View>
             {dashboardMetrics.loans_due_7_days.slice(0, 3).map((loan) => (
-              <View key={loan.id} style={styles.loanItem}>
+              <TouchableOpacity
+                key={loan.id}
+                style={styles.loanItem}
+                onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
+              >
                 <View style={styles.loanInfo}>
-                  <Text style={styles.loanName}>
-                    {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
-                  </Text>
-                  <Text style={styles.loanAmount}>
+                  <View style={styles.loanNameContainer}>
+                    <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
+                    <Text style={styles.loanName}>
+                      {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
+                    </Text>
+                  </View>
+                  <Text style={[styles.loanAmount, { color: colors.warning }]}>
                     {formatCurrency(loan.principal_amount, currency)}
                   </Text>
                 </View>
                 <Text style={styles.loanDate}>
                   Due: {formatDate(loan.due_date, dateFormat)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </Card.Content>
         </Card>
       )}
 
-      {/* Loans Due in 30 Days */}
+      {/* Loans Due in 30 Days - Redesigned */}
       {dashboardMetrics?.loans_due_30_days && dashboardMetrics.loans_due_30_days.length > 0 && (
-        <Card style={[styles.alertCard, styles.infoCard]}>
-          <Card.Content>
+        <Card style={styles.alertCard}>
+          <Card.Content style={styles.infoCardContent}>
             <View style={styles.alertHeader}>
-              <Text style={styles.alertTitle}>Due Within 30 Days</Text>
-              <Chip style={styles.infoChip}>
-                {dashboardMetrics.loans_due_30_days.length}
-              </Chip>
+              <View style={styles.alertTitleContainer}>
+                <Text style={styles.alertIcon}>📅</Text>
+                <Text style={styles.alertTitle}>Upcoming ({dashboardMetrics.loans_due_30_days.length})</Text>
+              </View>
             </View>
             {dashboardMetrics.loans_due_30_days.slice(0, 3).map((loan) => (
-              <View key={loan.id} style={styles.loanItem}>
+              <TouchableOpacity
+                key={loan.id}
+                style={styles.loanItem}
+                onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
+              >
                 <View style={styles.loanInfo}>
-                  <Text style={styles.loanName}>
-                    {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
-                  </Text>
-                  <Text style={styles.loanAmount}>
+                  <View style={styles.loanNameContainer}>
+                    <View style={[styles.statusDot, { backgroundColor: colors.info }]} />
+                    <Text style={styles.loanName}>
+                      {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
+                    </Text>
+                  </View>
+                  <Text style={[styles.loanAmount, { color: colors.info }]}>
                     {formatCurrency(loan.principal_amount, currency)}
                   </Text>
                 </View>
                 <Text style={styles.loanDate}>
                   Due: {formatDate(loan.due_date, dateFormat)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </Card.Content>
         </Card>
       )}
 
-      {/* Empty State */}
+      {/* Empty State - Redesigned */}
       {(!dashboardMetrics?.overdue_loans || dashboardMetrics.overdue_loans.length === 0) &&
        (!dashboardMetrics?.loans_due_7_days || dashboardMetrics.loans_due_7_days.length === 0) &&
        (!dashboardMetrics?.loans_due_30_days || dashboardMetrics.loans_due_30_days.length === 0) && (
         <Card style={styles.emptyCard}>
-          <Card.Content>
-            <Text style={styles.emptyText}>No upcoming or overdue loans</Text>
+          <Card.Content style={styles.emptyCardContent}>
+            <Text style={styles.emptyIcon}>✨</Text>
+            <Text style={styles.emptyText}>All clear!</Text>
             <Text style={styles.emptySubtext}>
-              Create your first loan to get started
+              No upcoming or overdue loans
             </Text>
           </Card.Content>
         </Card>
@@ -201,141 +253,158 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   header: {
-    padding: 20,
-    backgroundColor: '#6200ee',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    padding: spacing.xl,
+    paddingTop: spacing.xxl,
+    backgroundColor: colors.surface,
   },
   greeting: {
-    fontSize: 16,
-    color: '#fff',
-    opacity: 0.9,
+    ...typography.h2,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    ...typography.body2,
+    color: colors.textSecondary,
   },
   summaryContainer: {
-    padding: 16,
-    gap: 12,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   summaryCard: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
+    ...elevation.sm,
   },
-  lentCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#4caf50',
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
-  borrowedCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#f44336',
+  cardIcon: {
+    fontSize: 24,
+    marginRight: spacing.sm,
   },
-  netCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196f3',
+  lentCardContent: {
+    backgroundColor: colors.successLight,
+  },
+  borrowedCardContent: {
+    backgroundColor: colors.infoLight,
+  },
+  netCardContent: {
+    backgroundColor: colors.surfaceVariant,
   },
   summaryLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+    ...typography.label,
+    color: colors.textSecondary,
   },
   summaryAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.amount,
+    marginVertical: spacing.xs,
   },
-  lentAmount: {
-    color: '#4caf50',
-  },
-  borrowedAmount: {
-    color: '#f44336',
-  },
-  netAmount: {
-    color: '#2196f3',
+  summaryContext: {
+    ...typography.caption,
+    color: colors.textTertiary,
   },
   actionsContainer: {
-    padding: 16,
+    padding: spacing.lg,
     paddingTop: 0,
   },
   actionButton: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.md,
   },
   alertCard: {
-    margin: 16,
-    marginTop: 8,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.lg,
+    ...elevation.sm,
   },
-  overdueCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#f44336',
+  overdueCardContent: {
+    backgroundColor: colors.errorLight,
   },
-  warningCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#ff9800',
+  warningCardContent: {
+    backgroundColor: colors.warningLight,
   },
-  infoCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196f3',
+  infoCardContent: {
+    backgroundColor: colors.infoLight,
   },
   alertHeader: {
+    marginBottom: spacing.md,
+  },
+  alertTitleContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+  },
+  alertIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
   },
   alertTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  overdueChip: {
-    backgroundColor: '#ffebee',
-  },
-  warningChip: {
-    backgroundColor: '#fff3e0',
-  },
-  infoChip: {
-    backgroundColor: '#e3f2fd',
+    ...typography.h4,
   },
   loanItem: {
-    paddingVertical: 8,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.divider,
   },
   loanInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  loanNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.sm,
   },
   loanName: {
-    fontSize: 16,
+    ...typography.body1,
     fontWeight: '500',
   },
   loanAmount: {
-    fontSize: 16,
+    ...typography.body1,
     fontWeight: '600',
-    color: '#6200ee',
   },
   loanDate: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.body2,
+    color: colors.textSecondary,
   },
   viewAllButton: {
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   emptyCard: {
-    margin: 16,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.xl,
+    borderRadius: borderRadius.lg,
+    ...elevation.sm,
+  },
+  emptyCardContent: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.md,
   },
   emptyText: {
-    fontSize: 16,
+    ...typography.h4,
     textAlign: 'center',
-    color: '#666',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   emptySubtext: {
-    fontSize: 14,
+    ...typography.body2,
     textAlign: 'center',
-    color: '#999',
+    color: colors.textSecondary,
   },
 });
 

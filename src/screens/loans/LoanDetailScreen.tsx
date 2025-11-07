@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Card, Button, Divider } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/calculations';
 import { formatDate } from '../../utils/dateUtils';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { colors, spacing, borderRadius } from '../../theme';
 
 type LoanDetailRouteProp = RouteProp<RootStackParamList, 'LoanDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -16,19 +17,56 @@ export default function LoanDetailScreen() {
   const route = useRoute<LoanDetailRouteProp>();
   const navigation = useNavigation<NavigationProp>();
   const { loanId } = route.params;
-  
-  const { loans, repayments, fetchRepayments, getLoanCalculation } = useLoanStore();
+
+  const { loans, repayments, fetchRepayments, getLoanCalculation, deleteLoan } = useLoanStore();
   const { appUser } = useAuthStore();
-  
+
   const loan = loans.find((l) => l.id === loanId);
   const loanRepayments = repayments[loanId] || [];
   const calculation = loan ? getLoanCalculation(loanId) : null;
+
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (loanId) {
       fetchRepayments(loanId);
     }
   }, [loanId]);
+
+  const handleEdit = () => {
+    navigation.navigate('EditLoan', { loanId });
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Loan',
+      'Are you sure you want to delete this loan? This action cannot be undone and will also delete all associated repayments.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: confirmDelete,
+        },
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setDeleting(true);
+      await deleteLoan(loanId);
+      Alert.alert('Success', 'Loan deleted successfully');
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to delete loan');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (!loan || !calculation) {
     return (
@@ -157,9 +195,32 @@ export default function LoanDetailScreen() {
           onPress={() => navigation.navigate('CreateRepayment', { loanId })}
           style={styles.actionButton}
           disabled={loan.status === 'closed'}
+          buttonColor={colors.primary}
         >
           Record Repayment
         </Button>
+
+        <View style={styles.secondaryActions}>
+          <Button
+            mode="outlined"
+            onPress={handleEdit}
+            style={[styles.actionButton, styles.secondaryButton]}
+            textColor={colors.primary}
+          >
+            Edit Loan
+          </Button>
+
+          <Button
+            mode="outlined"
+            onPress={handleDelete}
+            style={[styles.actionButton, styles.secondaryButton]}
+            textColor={colors.error}
+            loading={deleting}
+            disabled={deleting}
+          >
+            Delete Loan
+          </Button>
+        </View>
       </View>
     </ScrollView>
   );
@@ -261,6 +322,15 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginBottom: 8,
+    borderRadius: borderRadius.md,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  secondaryButton: {
+    flex: 1,
   },
 });
 
