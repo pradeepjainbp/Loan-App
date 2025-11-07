@@ -6,7 +6,9 @@
     "start": "expo start --offline",
     "android": "expo start --offline --android",
     "ios": "expo start --offline --ios",
-    "web": "expo start --offline --web"
+    "web": "expo start --offline --web",
+    "build:web": "expo export:web",
+    "vercel-build": "expo export:web"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

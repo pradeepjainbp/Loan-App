@@ -1,0 +1,10 @@
+node_modules
+.expo
+.expo-shared
+*.log
+.DS_Store
+android
+ios
+*.md
+!README.md
+
