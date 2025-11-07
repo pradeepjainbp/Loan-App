@@ -167,9 +167,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let redirectTo: string;
 
       if (isWeb) {
-        // For web, use the current origin + /auth/callback
+        // For web, redirect back to the root URL
+        // Supabase will automatically detect the session from the URL hash
         const origin = window.location.origin;
-        redirectTo = `${origin}/auth/callback`;
+        redirectTo = origin;
       } else {
         // For mobile, use deep linking
         if (!makeRedirectUri) {
