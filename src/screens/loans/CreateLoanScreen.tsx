@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { InterestType, CompoundingFrequency } from '../../types';
 import { validateLoanData, calculateSimpleInterest, calculateCompoundInterest } from '../../utils/calculations';
 import { sanitizeLoanData } from '../../utils/sanitize';
+import { getCurrencySymbol } from '../../utils/currency';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
@@ -82,6 +83,16 @@ export default function CreateLoanScreen() {
       return;
     }
 
+    if (!principalAmount || parseFloat(principalAmount) <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid principal amount');
+      return;
+    }
+
+    if (!borrowerName.trim()) {
+      Alert.alert('Validation Error', 'Please enter borrower name');
+      return;
+    }
+
     const rawLoanData = {
       lender_name: isUserLender ? (appUser?.full_name || lenderName) : lenderName,
       borrower_name: borrowerName,
@@ -99,7 +110,7 @@ export default function CreateLoanScreen() {
 
     const loanData = sanitizeLoanData(rawLoanData);
     const errors = validateLoanData(loanData);
-    
+
     if (errors.length > 0) {
       Alert.alert('Validation Error', errors.join('\n'));
       return;
@@ -123,11 +134,14 @@ export default function CreateLoanScreen() {
   const submitLoan = async (loanData: any) => {
     try {
       setLoading(true);
+      console.log('Creating loan with data:', loanData);
       await createLoan(loanData);
       Alert.alert('Success', 'Loan created successfully');
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create loan');
+      console.error('Loan creation error:', error);
+      const errorMessage = error?.message || error?.details || 'Failed to create loan';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -195,7 +209,7 @@ export default function CreateLoanScreen() {
               keyboardType="decimal-pad"
               style={styles.input}
               placeholder="0.00"
-              left={<TextInput.Icon icon="currency-usd" />}
+              left={<TextInput.Affix text={getCurrencySymbol(currency)} />}
               outlineColor={colors.ui.border}
               activeOutlineColor={colors.primary}
               outlineStyle={{ borderRadius: borderRadius.md }}
@@ -284,21 +298,21 @@ export default function CreateLoanScreen() {
                 <Text style={styles.previewIcon}>📊</Text>
                 <Text style={styles.previewTitle}>Loan Summary</Text>
               </View>
-              
+
               <View style={styles.previewGrid}>
                 <View style={styles.previewItem}>
                   <Text style={styles.previewLabel}>Principal</Text>
-                  <Text style={styles.previewValue}>${preview.principal.toFixed(2)}</Text>
+                  <Text style={styles.previewValue}>{getCurrencySymbol(currency)}{preview.principal.toFixed(2)}</Text>
                 </View>
                 <View style={styles.previewItem}>
                   <Text style={styles.previewLabel}>Interest</Text>
-                  <Text style={styles.previewValue}>${preview.interest.toFixed(2)}</Text>
+                  <Text style={styles.previewValue}>{getCurrencySymbol(currency)}{preview.interest.toFixed(2)}</Text>
                 </View>
               </View>
-              
+
               <View style={styles.previewTotal}>
                 <Text style={styles.previewTotalLabel}>Total Amount Due</Text>
-                <Text style={styles.previewTotalValue}>${preview.total.toFixed(2)}</Text>
+                <Text style={styles.previewTotalValue}>{getCurrencySymbol(currency)}{preview.total.toFixed(2)}</Text>
               </View>
             </Card.Content>
           </Card>

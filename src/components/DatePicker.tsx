@@ -45,6 +45,11 @@ export default function DatePicker({
     });
   };
 
+  // Set reasonable year range (last 100 years to next 50 years)
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 100;
+  const endYear = currentYear + 50;
+
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={() => !disabled && setOpen(true)} disabled={disabled}>
@@ -63,14 +68,16 @@ export default function DatePicker({
         />
       </TouchableOpacity>
       {error && <Text style={styles.errorText}>{error}</Text>}
-      
+
       <DatePickerModal
         locale="en"
         mode="single"
         visible={open}
         onDismiss={onDismiss}
-        date={value || undefined}
+        date={value || new Date()}
         onConfirm={onConfirm}
+        startYear={startYear}
+        endYear={endYear}
         validRange={
           minDate || maxDate
             ? {
