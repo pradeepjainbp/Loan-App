@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, TextInput, Button, SegmentedButtons } from 'react-native-paper';
+import { Text, TextInput, Button, SegmentedButtons, Card } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
@@ -9,6 +9,7 @@ import { validateRepaymentData } from '../../utils/calculations';
 import { sanitizeRepaymentData } from '../../utils/sanitize';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
+import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
 
 type CreateRepaymentRouteProp = RouteProp<RootStackParamList, 'CreateRepayment'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -31,8 +32,12 @@ export default function CreateRepaymentScreen() {
 
   if (!loan || !calculation) {
     return (
-      <View style={styles.container}>
-        <Text>Loan not found</Text>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorIcon}>🔍</Text>
+        <Text style={styles.errorTitle}>Loan not found</Text>
+        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.errorButton}>
+          Go Back
+        </Button>
       </View>
     );
   }
@@ -47,17 +52,14 @@ export default function CreateRepaymentScreen() {
       notes: notes || undefined,
     };
 
-    // Sanitize all user inputs
     const repaymentData = sanitizeRepaymentData(rawRepaymentData);
-
-    // Validate sanitized data
     const errors = validateRepaymentData(repaymentData, loan, calculation.current_outstanding);
+    
     if (errors.length > 0) {
       Alert.alert('Validation Error', errors.join('\n'));
       return;
     }
 
-    // Warn if payment exceeds outstanding
     if (repaymentData.payment_amount > calculation.current_outstanding) {
       Alert.alert(
         'Warning',
@@ -86,77 +88,185 @@ export default function CreateRepaymentScreen() {
     }
   };
 
+  const quickAmounts = [
+    { label: '25%', value: calculation.current_outstanding * 0.25 },
+    { label: '50%', value: calculation.current_outstanding * 0.5 },
+    { label: '100%', value: calculation.current_outstanding },
+  ];
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Outstanding Balance:</Text>
-          <Text style={styles.infoValue}>
-            ${calculation.current_outstanding.toFixed(2)}
-          </Text>
+        {/* Outstanding Balance Card */}
+        <Card style={styles.balanceCard}>
+          <Card.Content style={styles.balanceContent}>
+            <View style={styles.balanceHeader}>
+              <Text style={styles.balanceIcon}>💰</Text>
+              <View style={styles.balanceInfo}>
+                <Text style={styles.balanceLabel}>Outstanding Balance</Text>
+                <Text style={styles.balanceAmount}>
+                  ${calculation.current_outstanding.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.balanceDetails}>
+              <View style={styles.balanceDetailRow}>
+                <Text style={styles.balanceDetailLabel}>Total Due:</Text>
+                <Text style={styles.balanceDetailValue}>
+                  ${calculation.total_amount_due.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.balanceDetailRow}>
+                <Text style={styles.balanceDetailLabel}>Already Paid:</Text>
+                <Text style={[styles.balanceDetailValue, { color: colors.semantic.success.main }]}>
+                  ${calculation.total_repaid.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+
+        {/* Quick Amount Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Amount</Text>
+          <View style={styles.quickAmountRow}>
+            {quickAmounts.map((quick) => (
+              <Button
+                key={quick.label}
+                mode="outlined"
+                onPress={() => setPaymentAmount(quick.value.toFixed(2))}
+                style={styles.quickAmountButton}
+                labelStyle={styles.quickAmountButtonLabel}
+                textColor={colors.primary}
+              >
+                {quick.label}
+              </Button>
+            ))}
+          </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Payment Details</Text>
+        {/* Payment Amount */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Details</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Payment Amount *</Text>
+            <TextInput
+              value={paymentAmount}
+              onChangeText={setPaymentAmount}
+              mode="outlined"
+              keyboardType="decimal-pad"
+              style={styles.input}
+              placeholder="0.00"
+              left={<TextInput.Icon icon="currency-usd" />}
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
+            />
+            {paymentAmount && parseFloat(paymentAmount) > 0 && (
+              <View style={styles.amountPreview}>
+                <Text style={styles.amountPreviewLabel}>Remaining after payment:</Text>
+                <Text style={styles.amountPreviewValue}>
+                  ${Math.max(0, calculation.current_outstanding - parseFloat(paymentAmount)).toFixed(2)}
+                </Text>
+              </View>
+            )}
+          </View>
 
-        <TextInput
-          label="Payment Amount *"
-          value={paymentAmount}
-          onChangeText={setPaymentAmount}
-          mode="outlined"
-          keyboardType="decimal-pad"
-          style={styles.input}
-          left={<TextInput.Icon icon="currency-usd" />}
-        />
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Payment Date *</Text>
+            <DatePicker
+              label=""
+              value={paymentDate}
+              onChange={setPaymentDate}
+              maxDate={new Date()}
+            />
+          </View>
+        </View>
 
-        <DatePicker
-          label="Payment Date *"
-          value={paymentDate}
-          onChange={setPaymentDate}
-          maxDate={new Date()}
-        />
+        {/* Payment Method */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment Method *</Text>
+          <SegmentedButtons
+            value={paymentMethod}
+            onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+            buttons={[
+              { value: 'cash', label: 'Cash', icon: 'cash' },
+              { value: 'bank_transfer', label: 'Bank', icon: 'bank' },
+              { value: 'upi', label: 'UPI', icon: 'cellphone' },
+            ]}
+            style={styles.segmentedButtons}
+          />
+          <SegmentedButtons
+            value={paymentMethod}
+            onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+            buttons={[
+              { value: 'check', label: 'Check', icon: 'checkbook' },
+              { value: 'other', label: 'Other', icon: 'dots-horizontal' },
+            ]}
+            style={styles.segmentedButtons}
+          />
+        </View>
 
-        <Text style={styles.label}>Payment Method *</Text>
-        <SegmentedButtons
-          value={paymentMethod}
-          onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
-          buttons={[
-            { value: 'cash', label: 'Cash' },
-            { value: 'bank_transfer', label: 'Bank' },
-            { value: 'upi', label: 'UPI' },
-            { value: 'check', label: 'Check' },
-            { value: 'other', label: 'Other' },
-          ]}
-          style={styles.segmentedButtons}
-        />
+        {/* Optional Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Additional Details (Optional)</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Transaction Reference</Text>
+            <TextInput
+              value={transactionReference}
+              onChangeText={setTransactionReference}
+              mode="outlined"
+              style={styles.input}
+              placeholder="e.g., Check #1234, UPI Ref"
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
+            />
+          </View>
 
-        <TextInput
-          label="Transaction Reference"
-          value={transactionReference}
-          onChangeText={setTransactionReference}
-          mode="outlined"
-          style={styles.input}
-        />
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Notes</Text>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              mode="outlined"
+              multiline
+              numberOfLines={3}
+              style={styles.textArea}
+              placeholder="Add any notes about this payment..."
+              maxLength={200}
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
+            />
+            <Text style={styles.charCount}>{notes.length}/200</Text>
+          </View>
+        </View>
 
-        <TextInput
-          label="Notes"
-          value={notes}
-          onChangeText={setNotes}
-          mode="outlined"
-          multiline
-          numberOfLines={3}
-          style={styles.input}
-          maxLength={200}
-        />
-
+        {/* Submit Button */}
         <Button
           mode="contained"
           onPress={handleSubmit}
           loading={loading}
-          disabled={loading}
+          disabled={loading || !paymentAmount || parseFloat(paymentAmount) <= 0}
           style={styles.submitButton}
+          buttonColor={colors.semantic.success.main}
+          labelStyle={styles.submitButtonLabel}
+          icon="check-circle"
         >
-          Record Repayment
+          Record Payment
         </Button>
+
+        {/* Help Text */}
+        <View style={styles.helpCard}>
+          <Text style={styles.helpIcon}>💡</Text>
+          <Text style={styles.helpText}>
+            Recording a payment will update the outstanding balance and track your repayment history.
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -165,47 +275,187 @@ export default function CreateRepaymentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background.secondary,
   },
   content: {
-    padding: 16,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
   },
-  infoCard: {
-    backgroundColor: '#e3f2fd',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 24,
+  
+  // Error State
+  errorContainer: {
+    flex: 1,
+    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
   },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: spacing.lg,
   },
-  infoValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1976d2',
+  errorTitle: {
+    ...typography.heading.h2,
+    color: colors.text.primary,
+    marginBottom: spacing.xl,
+  },
+  errorButton: {
+    borderRadius: borderRadius.md,
+  },
+  
+  // Balance Card
+  balanceCard: {
+    marginBottom: spacing.xl,
+    backgroundColor: colors.semantic.info.light,
+    borderRadius: borderRadius.lg,
+    ...elevation.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.semantic.info.main,
+  },
+  balanceContent: {
+    padding: spacing.xl,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  balanceIcon: {
+    fontSize: 40,
+    marginRight: spacing.md,
+  },
+  balanceInfo: {
+    flex: 1,
+  },
+  balanceLabel: {
+    ...typography.label.large,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  balanceAmount: {
+    ...typography.amount.large,
+    color: colors.semantic.info.dark,
+  },
+  balanceDetails: {
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  balanceDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  balanceDetailLabel: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+  },
+  balanceDetailValue: {
+    ...typography.body.medium,
+    color: colors.text.primary,
+    fontWeight: '600',
+  },
+  
+  // Quick Amount
+  quickAmountRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  quickAmountButton: {
+    flex: 1,
+    borderRadius: borderRadius.md,
+    borderColor: colors.ui.border,
+  },
+  quickAmountButtonLabel: {
+    ...typography.button.medium,
+  },
+  
+  // Sections
+  section: {
+    marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
+    ...typography.heading.h4,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 12,
-    marginBottom: 8,
+  
+  // Inputs
+  inputGroup: {
+    marginBottom: spacing.lg,
+  },
+  inputLabel: {
+    ...typography.label.large,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
   },
   input: {
-    marginBottom: 12,
+    backgroundColor: colors.background.primary,
   },
+  textArea: {
+    backgroundColor: colors.background.primary,
+    minHeight: 80,
+  },
+  charCount: {
+    ...typography.caption.regular,
+    color: colors.text.tertiary,
+    textAlign: 'right',
+    marginTop: spacing.xs,
+  },
+  amountPreview: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.sm,
+  },
+  amountPreviewLabel: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+  },
+  amountPreviewValue: {
+    ...typography.body.medium,
+    color: colors.text.primary,
+    fontWeight: '700',
+  },
+  
+  // Segmented Buttons
   segmentedButtons: {
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
+  
+  // Submit Button
   submitButton: {
-    marginTop: 16,
-    marginBottom: 32,
+    borderRadius: borderRadius.md,
+    ...elevation.sm,
+    marginBottom: spacing.lg,
+  },
+  submitButtonLabel: {
+    ...typography.button.large,
+    paddingVertical: spacing.sm,
+  },
+  
+  // Help Card
+  helpCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.background.tertiary,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  helpIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
+  },
+  helpText: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+    flex: 1,
+    lineHeight: 20,
   },
 });
-

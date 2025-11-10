@@ -1,79 +1,148 @@
 /**
- * Color Palette - Kite-Inspired Design
- * Soft, friendly colors for a loan app between friends and family
+ * Color System - Modern & Friendly
+ * Designed for cross-platform consistency (Web, iOS, Android)
+ * Optimized for loan tracking between friends and family
  */
 
 export const colors = {
-  // Primary Colors - Soft, friendly blue (instead of harsh purple)
-  primary: '#4A90E2',
-  primaryLight: '#E3F2FD',
-  primaryDark: '#2E5C8A',
+  // Primary - Trustworthy Blue (replaces harsh purple)
+  primary: '#2563EB',           // Modern blue - trust, reliability
+  primaryLight: '#DBEAFE',      // Light blue background
+  primaryDark: '#1E40AF',       // Darker blue for pressed states
+  primaryHover: '#3B82F6',      // Hover state
   
-  // Background Colors
-  background: '#FAFBFC',        // Off-white (not pure white)
-  surface: '#FFFFFF',           // Pure white for cards
-  surfaceVariant: '#F5F7FA',    // Light gray for subtle sections
+  // Secondary - Warm Accent
+  secondary: '#8B5CF6',         // Soft purple for variety
+  secondaryLight: '#EDE9FE',
+  secondaryDark: '#6D28D9',
   
-  // Text Colors - Blue-gray tones (not harsh black)
-  textPrimary: '#2C3E50',       // Dark blue-gray
-  textSecondary: '#7F8C9A',     // Medium gray
-  textTertiary: '#B0BEC5',      // Light gray
-  textDisabled: '#CFD8DC',      // Very light gray
+  // Background Hierarchy
+  background: {
+    primary: '#FFFFFF',         // Main background (cards, surfaces)
+    secondary: '#F8FAFC',       // Page background (slightly off-white)
+    tertiary: '#F1F5F9',        // Subtle sections/dividers
+    elevated: '#FFFFFF',        // Elevated cards (same as primary for clean look)
+  },
   
-  // Success/Positive - Gentle green (money lent out)
-  success: '#52C41A',
-  successLight: '#F6FFED',
-  successBorder: '#B7EB8F',
+  // Text Hierarchy - Blue-gray scale for warmth
+  text: {
+    primary: '#0F172A',         // Almost black with blue tone
+    secondary: '#64748B',       // Medium gray for descriptions
+    tertiary: '#94A3B8',        // Light gray for labels
+    disabled: '#CBD5E1',        // Very light for disabled
+    inverse: '#FFFFFF',         // White text on dark backgrounds
+  },
   
-  // Warning/Attention - Warm orange (not alarming)
-  warning: '#FAAD14',
-  warningLight: '#FFFBE6',
-  warningBorder: '#FFE58F',
+  // Semantic Colors - Context-aware and friendly
+  semantic: {
+    // Success/Positive - You lent money (good for you)
+    success: {
+      main: '#10B981',          // Fresh green
+      light: '#D1FAE5',
+      dark: '#059669',
+      border: '#6EE7B7',
+    },
+    
+    // Info - Neutral transactions
+    info: {
+      main: '#0EA5E9',          // Sky blue
+      light: '#E0F2FE',
+      dark: '#0284C7',
+      border: '#7DD3FC',
+    },
+    
+    // Warning - Attention needed (due soon)
+    warning: {
+      main: '#F59E0B',          // Warm amber
+      light: '#FEF3C7',
+      dark: '#D97706',
+      border: '#FCD34D',
+    },
+    
+    // Error - Urgent action (overdue)
+    error: {
+      main: '#EF4444',          // Soft red (not aggressive)
+      light: '#FEE2E2',
+      dark: '#DC2626',
+      border: '#FCA5A5',
+    },
+    
+    // Neutral - Inactive/closed
+    neutral: {
+      main: '#6B7280',
+      light: '#F9FAFB',
+      dark: '#374151',
+      border: '#E5E7EB',
+    },
+  },
   
-  // Error/Urgent - Soft red (not aggressive)
-  error: '#FF4D4F',
-  errorLight: '#FFF1F0',
-  errorBorder: '#FFCCC7',
+  // Money Context Colors (Key for loan tracking)
+  money: {
+    lent: '#10B981',            // Green - you lent (positive for you)
+    borrowed: '#2563EB',        // Blue - you borrowed (neutral, not negative!)
+    received: '#10B981',        // Green - payment received
+    paid: '#0EA5E9',           // Blue - payment made
+    netPositive: '#10B981',     // Net lender
+    netNegative: '#EF4444',     // Net borrower
+  },
   
-  // Info - Calm blue
-  info: '#1890FF',
-  infoLight: '#E6F7FF',
-  infoBorder: '#91D5FF',
+  // Status Colors (Loan states)
+  status: {
+    active: '#10B981',          // Green dot
+    pending: '#F59E0B',         // Amber dot
+    overdue: '#EF4444',         // Red dot
+    dueSoon: '#F59E0B',         // Amber dot
+    settled: '#6B7280',         // Gray dot
+    closed: '#6B7280',          // Gray dot
+  },
   
-  // Neutral - For closed/inactive
-  neutral: '#8C8C8C',
-  neutralLight: '#FAFAFA',
-  neutralBorder: '#D9D9D9',
+  // UI Elements
+  ui: {
+    border: '#E2E8F0',          // Subtle borders
+    divider: '#F1F5F9',         // Lighter dividers
+    overlay: 'rgba(15, 23, 42, 0.5)',  // Dark overlay for modals
+    skeleton: '#E2E8F0',        // Loading skeletons
+    focus: '#2563EB',           // Focus rings
+  },
   
-  // Money Colors (Context-Aware)
-  lent: '#52C41A',              // Gentle green (you lent = positive)
-  borrowed: '#4A90E2',          // Soft blue (you borrowed = neutral, not negative!)
-  netPositive: '#52C41A',       // Green when net positive
-  netNegative: '#FF4D4F',       // Soft red when net negative
+  // Interactive States (for buttons, links)
+  interactive: {
+    hover: 'rgba(37, 99, 235, 0.08)',    // Subtle blue hover
+    pressed: 'rgba(37, 99, 235, 0.12)',  // Slightly darker pressed
+    disabled: '#F1F5F9',                  // Disabled background
+    selected: '#DBEAFE',                  // Selected state
+  },
   
-  // Status Colors
-  active: '#52C41A',            // Green for active loans
-  overdue: '#FF4D4F',           // Soft red for overdue
-  dueSoon: '#FAAD14',           // Warm orange for due soon
-  closed: '#8C8C8C',            // Gray for closed
+  // Chart Colors (for analytics/graphs)
+  chart: {
+    primary: '#2563EB',
+    secondary: '#8B5CF6',
+    tertiary: '#10B981',
+    quaternary: '#F59E0B',
+    quinary: '#EF4444',
+    senary: '#06B6D4',
+  },
   
-  // Borders & Dividers
-  border: '#E8E8E8',
-  divider: '#F0F0F0',
-  
-  // Shadows (for elevation)
-  shadow: '#000000',
+  // Special Colors
+  special: {
+    highlight: '#FEF3C7',       // Yellow highlight
+    badge: '#EF4444',           // Red badge (notifications)
+    link: '#2563EB',            // Link color
+  },
 } as const;
 
-// Legacy color mappings (for gradual migration)
-export const legacyColors = {
-  // Map old colors to new ones
-  purple: colors.primary,
-  green: colors.success,
-  red: colors.error,
-  orange: colors.warning,
-  gray: colors.neutral,
+// Platform-specific adjustments (optional usage)
+export const platformColors = {
+  // iOS uses more shadows, Android uses more elevation
+  ios: {
+    shadowColor: 'rgba(15, 23, 42, 0.12)',
+  },
+  android: {
+    shadowColor: 'rgba(15, 23, 42, 0.08)',
+  },
+  web: {
+    shadowColor: 'rgba(15, 23, 42, 0.1)',
+  },
 };
 
-export type ColorName = keyof typeof colors;
-
+export type ColorPath = keyof typeof colors;

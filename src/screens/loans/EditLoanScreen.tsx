@@ -10,7 +10,7 @@ import { validateLoanData, calculateSimpleInterest, calculateCompoundInterest, f
 import { sanitizeLoanData } from '../../utils/sanitize';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
-import { colors, typography, spacing, borderRadius } from '../../theme';
+import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
 
 type EditLoanRouteProp = RouteProp<RootStackParamList, 'EditLoan'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -43,8 +43,12 @@ export default function EditLoanScreen() {
 
   if (!loan) {
     return (
-      <View style={styles.container}>
-        <Text>Loan not found</Text>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorIcon}>🔍</Text>
+        <Text style={styles.errorTitle}>Loan not found</Text>
+        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.errorButton}>
+          Go Back
+        </Button>
       </View>
     );
   }
@@ -112,11 +116,9 @@ export default function EditLoanScreen() {
       is_user_lender: isUserLender,
     };
 
-    // Sanitize all user inputs to prevent XSS
     const loanData = sanitizeLoanData(rawLoanData);
-
-    // Validate sanitized data
     const errors = validateLoanData(loanData);
+    
     if (errors.length > 0) {
       Alert.alert('Validation Error', errors.join('\n'));
       return;
@@ -138,158 +140,249 @@ export default function EditLoanScreen() {
   const currency = appUser?.settings?.currency || 'USD';
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Role</Text>
-        
-        <SegmentedButtons
-          value={isUserLender ? 'lender' : 'borrower'}
-          onValueChange={(value) => setIsUserLender(value === 'lender')}
-          buttons={[
-            { value: 'lender', label: 'I am Lending' },
-            { value: 'borrower', label: 'I am Borrowing' },
-          ]}
-          style={styles.segmentedButtons}
-        />
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Text style={styles.infoBannerIcon}>ℹ️</Text>
+          <Text style={styles.infoBannerText}>
+            Editing loan details. Changes will be saved immediately.
+          </Text>
+        </View>
 
-        <Text style={styles.sectionTitle}>Loan Details</Text>
-        
-        <TextInput
-          label="Lender Name"
-          value={lenderName}
-          onChangeText={setLenderName}
-          mode="outlined"
-          style={styles.input}
-          disabled={isUserLender}
-        />
-
-        <TextInput
-          label="Borrower Name *"
-          value={borrowerName}
-          onChangeText={setBorrowerName}
-          mode="outlined"
-          style={styles.input}
-        />
-
-        <TextInput
-          label="Principal Amount *"
-          value={principalAmount}
-          onChangeText={setPrincipalAmount}
-          mode="outlined"
-          keyboardType="decimal-pad"
-          style={styles.input}
-          left={<TextInput.Icon icon="currency-usd" />}
-        />
-
-        <DatePicker
-          label="Start Date *"
-          value={startDate}
-          onChange={setStartDate}
-        />
-
-        <DatePicker
-          label="Due Date *"
-          value={dueDate}
-          onChange={(date) => setDueDate(date)}
-          minDate={startDate}
-        />
-
-        <Text style={styles.sectionTitle}>Interest</Text>
-        
-        <SegmentedButtons
-          value={interestType}
-          onValueChange={(value) => setInterestType(value as InterestType)}
-          buttons={[
-            { value: 'none', label: 'None' },
-            { value: 'simple', label: 'Simple' },
-            { value: 'compound', label: 'Compound' },
-          ]}
-          style={styles.segmentedButtons}
-        />
-
-        {interestType !== 'none' && (
-          <TextInput
-            label="Interest Rate (%) *"
-            value={interestRate}
-            onChangeText={setInterestRate}
-            mode="outlined"
-            keyboardType="decimal-pad"
-            style={styles.input}
+        {/* Role Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Loan Type</Text>
+          <SegmentedButtons
+            value={isUserLender ? 'lender' : 'borrower'}
+            onValueChange={(value) => setIsUserLender(value === 'lender')}
+            buttons={[
+              { 
+                value: 'lender', 
+                label: 'I Lent',
+                icon: 'cash-plus',
+              },
+              { 
+                value: 'borrower', 
+                label: 'I Borrowed',
+                icon: 'handshake',
+              },
+            ]}
+            style={styles.segmentedButtons}
           />
-        )}
+        </View>
 
-        {interestType === 'compound' && (
-          <>
-            <Text style={styles.label}>Compounding Frequency</Text>
-            <SegmentedButtons
-              value={compoundingFrequency}
-              onValueChange={(value) => setCompoundingFrequency(value as CompoundingFrequency)}
-              buttons={[
-                { value: 'daily', label: 'Daily' },
-                { value: 'monthly', label: 'Monthly' },
-                { value: 'quarterly', label: 'Quarterly' },
-                { value: 'yearly', label: 'Yearly' },
-              ]}
-              style={styles.segmentedButtons}
+        {/* Loan Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Loan Details</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Lender Name *</Text>
+            <TextInput
+              value={lenderName}
+              onChangeText={setLenderName}
+              mode="outlined"
+              style={styles.input}
+              disabled={isUserLender}
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
             />
-          </>
-        )}
+          </View>
 
-        <Text style={styles.sectionTitle}>Additional Information</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Borrower Name *</Text>
+            <TextInput
+              value={borrowerName}
+              onChangeText={setBorrowerName}
+              mode="outlined"
+              style={styles.input}
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
+            />
+          </View>
 
-        <TextInput
-          label="Notes"
-          value={notes}
-          onChangeText={setNotes}
-          mode="outlined"
-          multiline
-          numberOfLines={3}
-          style={styles.input}
-          maxLength={500}
-        />
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Principal Amount *</Text>
+            <TextInput
+              value={principalAmount}
+              onChangeText={setPrincipalAmount}
+              mode="outlined"
+              keyboardType="decimal-pad"
+              style={styles.input}
+              left={<TextInput.Icon icon="currency-usd" />}
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
+            />
+          </View>
 
-        <Text style={styles.label}>Tags</Text>
-        <View style={styles.tagInputContainer}>
-          <TextInput
-            value={tagInput}
-            onChangeText={setTagInput}
-            mode="outlined"
-            style={[styles.input, styles.tagInput]}
-            placeholder="Add a tag"
+          <View style={styles.dateRow}>
+            <View style={styles.dateColumn}>
+              <Text style={styles.inputLabel}>Start Date *</Text>
+              <DatePicker
+                label=""
+                value={startDate}
+                onChange={setStartDate}
+              />
+            </View>
+            <View style={styles.dateColumn}>
+              <Text style={styles.inputLabel}>Due Date *</Text>
+              <DatePicker
+                label=""
+                value={dueDate}
+                onChange={(date) => setDueDate(date)}
+                minDate={startDate}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Interest Configuration */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Interest</Text>
+          
+          <SegmentedButtons
+            value={interestType}
+            onValueChange={(value) => setInterestType(value as InterestType)}
+            buttons={[
+              { value: 'none', label: 'None' },
+              { value: 'simple', label: 'Simple' },
+              { value: 'compound', label: 'Compound' },
+            ]}
+            style={styles.segmentedButtons}
           />
-          <Button mode="contained" onPress={handleAddTag} style={styles.addTagButton}>
-            Add
-          </Button>
+
+          {interestType !== 'none' && (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Interest Rate (% per year) *</Text>
+                <TextInput
+                  value={interestRate}
+                  onChangeText={setInterestRate}
+                  mode="outlined"
+                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  right={<TextInput.Affix text="%" />}
+                  outlineColor={colors.ui.border}
+                  activeOutlineColor={colors.primary}
+                  outlineStyle={{ borderRadius: borderRadius.md }}
+                />
+              </View>
+
+              {interestType === 'compound' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Compounding Frequency</Text>
+                  <SegmentedButtons
+                    value={compoundingFrequency}
+                    onValueChange={(value) => setCompoundingFrequency(value as CompoundingFrequency)}
+                    buttons={[
+                      { value: 'daily', label: 'Daily' },
+                      { value: 'monthly', label: 'Monthly' },
+                      { value: 'quarterly', label: 'Quarterly' },
+                      { value: 'yearly', label: 'Yearly' },
+                    ]}
+                    style={styles.segmentedButtons}
+                  />
+                </View>
+              )}
+            </>
+          )}
         </View>
 
-        <View style={styles.tagsContainer}>
-          {tags.map((tag) => (
-            <Chip key={tag} onClose={() => handleRemoveTag(tag)} style={styles.tag}>
-              {tag}
-            </Chip>
-          ))}
-        </View>
-
+        {/* Preview Card */}
         {preview && (
           <Card style={styles.previewCard}>
-            <Card.Content>
-              <Text style={styles.previewTitle}>Loan Summary</Text>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Principal:</Text>
-                <Text style={styles.previewValue}>{formatCurrency(preview.principal, currency)}</Text>
+            <Card.Content style={styles.previewContent}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewIcon}>📊</Text>
+                <Text style={styles.previewTitle}>Updated Summary</Text>
               </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Interest:</Text>
-                <Text style={styles.previewValue}>{formatCurrency(preview.interest, currency)}</Text>
+              
+              <View style={styles.previewGrid}>
+                <View style={styles.previewItem}>
+                  <Text style={styles.previewLabel}>Principal</Text>
+                  <Text style={styles.previewValue}>{formatCurrency(preview.principal, currency)}</Text>
+                </View>
+                <View style={styles.previewItem}>
+                  <Text style={styles.previewLabel}>Interest</Text>
+                  <Text style={styles.previewValue}>{formatCurrency(preview.interest, currency)}</Text>
+                </View>
               </View>
-              <View style={[styles.previewRow, styles.previewTotal]}>
-                <Text style={styles.previewTotalLabel}>Total Due:</Text>
+              
+              <View style={styles.previewTotal}>
+                <Text style={styles.previewTotalLabel}>Total Due</Text>
                 <Text style={styles.previewTotalValue}>{formatCurrency(preview.total, currency)}</Text>
               </View>
             </Card.Content>
           </Card>
         )}
 
+        {/* Additional Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Additional Information</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Notes</Text>
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              mode="outlined"
+              multiline
+              numberOfLines={3}
+              style={styles.textArea}
+              placeholder="Add any notes..."
+              maxLength={500}
+              outlineColor={colors.ui.border}
+              activeOutlineColor={colors.primary}
+              outlineStyle={{ borderRadius: borderRadius.md }}
+            />
+            <Text style={styles.charCount}>{notes.length}/500</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Tags</Text>
+            <View style={styles.tagInputRow}>
+              <TextInput
+                value={tagInput}
+                onChangeText={setTagInput}
+                mode="outlined"
+                style={styles.tagInput}
+                placeholder="Add a tag"
+                outlineColor={colors.ui.border}
+                activeOutlineColor={colors.primary}
+                outlineStyle={{ borderRadius: borderRadius.md }}
+              />
+              <Button 
+                mode="contained" 
+                onPress={handleAddTag} 
+                style={styles.addTagButton}
+                buttonColor={colors.primary}
+                labelStyle={styles.addTagButtonLabel}
+              >
+                Add
+              </Button>
+            </View>
+
+            {tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {tags.map((tag) => (
+                  <Chip 
+                    key={tag} 
+                    onClose={() => handleRemoveTag(tag)} 
+                    style={styles.tag}
+                    textStyle={styles.tagText}
+                  >
+                    {tag}
+                  </Chip>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Submit Button */}
         <Button
           mode="contained"
           onPress={handleSubmit}
@@ -297,8 +390,10 @@ export default function EditLoanScreen() {
           disabled={loading}
           style={styles.submitButton}
           buttonColor={colors.primary}
+          labelStyle={styles.submitButtonLabel}
+          icon="content-save"
         >
-          Update Loan
+          Save Changes
         </Button>
       </View>
     </ScrollView>
@@ -308,86 +403,202 @@ export default function EditLoanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background.secondary,
   },
   content: {
     padding: spacing.lg,
+    paddingBottom: spacing.xxxl,
+  },
+  
+  // Error State
+  errorContainer: {
+    flex: 1,
+    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: spacing.lg,
+  },
+  errorTitle: {
+    ...typography.heading.h2,
+    color: colors.text.primary,
+    marginBottom: spacing.xl,
+  },
+  errorButton: {
+    borderRadius: borderRadius.md,
+  },
+  
+  // Info Banner
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.semantic.info.light,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.xl,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.semantic.info.main,
+  },
+  infoBannerIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
+  },
+  infoBannerText: {
+    ...typography.body.small,
+    color: colors.semantic.info.dark,
+    flex: 1,
+  },
+  
+  // Sections
+  section: {
+    marginBottom: spacing.xl,
   },
   sectionTitle: {
-    ...typography.h4,
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
+    ...typography.heading.h4,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
   },
-  label: {
-    ...typography.label,
+  
+  // Inputs
+  inputGroup: {
+    marginBottom: spacing.lg,
+  },
+  inputLabel: {
+    ...typography.label.large,
+    color: colors.text.secondary,
     marginBottom: spacing.sm,
   },
   input: {
-    marginBottom: spacing.md,
+    backgroundColor: colors.background.primary,
   },
-  segmentedButtons: {
-    marginBottom: spacing.lg,
+  textArea: {
+    backgroundColor: colors.background.primary,
+    minHeight: 100,
   },
-  tagInputContainer: {
+  charCount: {
+    ...typography.caption.regular,
+    color: colors.text.tertiary,
+    textAlign: 'right',
+    marginTop: spacing.xs,
+  },
+  
+  // Date Pickers
+  dateRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: spacing.md,
+  },
+  dateColumn: {
+    flex: 1,
+  },
+  
+  // Segmented Buttons
+  segmentedButtons: {
+    marginBottom: spacing.sm,
+  },
+  
+  // Tags
+  tagInputRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
+    alignItems: 'flex-start',
   },
   tagInput: {
     flex: 1,
+    backgroundColor: colors.background.primary,
   },
   addTagButton: {
-    marginBottom: spacing.md,
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+  },
+  addTagButtonLabel: {
+    ...typography.button.medium,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginBottom: spacing.lg,
+    marginTop: spacing.md,
   },
   tag: {
-    marginRight: spacing.xs,
-    marginBottom: spacing.xs,
+    backgroundColor: colors.background.tertiary,
   },
+  tagText: {
+    ...typography.caption.medium,
+    color: colors.text.secondary,
+  },
+  
+  // Preview Card
   previewCard: {
-    marginVertical: spacing.lg,
+    marginBottom: spacing.xl,
+    backgroundColor: colors.semantic.warning.light,
     borderRadius: borderRadius.lg,
-    backgroundColor: colors.primaryLight,
+    ...elevation.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.semantic.warning.main,
+  },
+  previewContent: {
+    padding: spacing.lg,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  previewIcon: {
+    fontSize: 24,
+    marginRight: spacing.sm,
   },
   previewTitle: {
-    ...typography.h4,
-    marginBottom: spacing.md,
+    ...typography.heading.h4,
+    color: colors.text.primary,
   },
-  previewRow: {
+  previewGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
-  previewLabel: {
-    ...typography.body1,
-    color: colors.textSecondary,
-  },
-  previewValue: {
-    ...typography.body1,
-    fontWeight: '600',
-  },
-  previewTotal: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  previewTotalLabel: {
-    ...typography.h4,
-  },
-  previewTotalValue: {
-    ...typography.h4,
-    color: colors.primary,
-  },
-  submitButton: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xxl,
+  previewItem: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+    padding: spacing.md,
     borderRadius: borderRadius.md,
   },
+  previewLabel: {
+    ...typography.label.medium,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  previewValue: {
+    ...typography.amount.tiny,
+    color: colors.text.primary,
+  },
+  previewTotal: {
+    backgroundColor: colors.background.primary,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  previewTotalLabel: {
+    ...typography.heading.h5,
+    color: colors.text.primary,
+  },
+  previewTotalValue: {
+    ...typography.amount.medium,
+    color: colors.semantic.warning.dark,
+  },
+  
+  // Submit Button
+  submitButton: {
+    borderRadius: borderRadius.md,
+    ...elevation.sm,
+  },
+  submitButtonLabel: {
+    ...typography.button.large,
+    paddingVertical: spacing.sm,
+  },
 });
-
