@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { Text, Card, Button, Divider, Modal, Portal, RadioButton } from 'react-native-paper';
 import { useAuthStore } from '../../store/authStore';
+import { useLoanStore } from '../../store/loanStore';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
 import { Currency, DateFormat } from '../../types';
+import { exportToCSV, exportToJSON, getBackupStatus } from '../../utils/exportData';
 
 export default function SettingsScreen() {
-  const { appUser, signOut, updateUserSettings, loading } = useAuthStore();
+  const { appUser, signOut, updateUserSettings } = useAuthStore();
+  const { loans, repayments } = useLoanStore();
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [dateFormatModalVisible, setDateFormatModalVisible] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(appUser?.settings?.notifications_enabled ?? true);
@@ -53,11 +56,45 @@ export default function SettingsScreen() {
   };
 
   const handleExportData = () => {
-    Alert.alert('Export Data', 'Export functionality coming soon');
+    Alert.alert(
+      'Export Data',
+      'Choose export format:',
+      [
+        {
+          text: 'CSV',
+          onPress: () => {
+            try {
+              const allRepayments = Object.values(repayments).flat();
+              exportToCSV(loans, allRepayments);
+              Alert.alert('Success', 'Data exported as CSV file');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to export data');
+            }
+          },
+        },
+        {
+          text: 'JSON',
+          onPress: () => {
+            try {
+              const allRepayments = Object.values(repayments).flat();
+              exportToJSON(loans, allRepayments);
+              Alert.alert('Success', 'Data exported as JSON file');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to export data');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const handleBackupStatus = () => {
-    Alert.alert('Backup Status', 'Your data is automatically backed up to the cloud and synced across all your devices.');
+    const backup = getBackupStatus();
+    Alert.alert(
+      'Backup Status',
+      `Status: ${backup.status}\n\nLast Backup: ${backup.lastBackup}\n\nNext Backup: ${backup.nextBackup}\n\n${backup.message}`
+    );
   };
 
   const handleDeleteAccount = () => {
@@ -272,7 +309,7 @@ export default function SettingsScreen() {
       <Portal>
         <Modal visible={dateFormatModalVisible} onDismiss={() => setDateFormatModalVisible(false)} contentContainerStyle={styles.modalContent}>
           <Text style={styles.modalTitle}>Select Date Format</Text>
-          {(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'] as DateFormat[]).map((format) => (
+          {(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'DD-MMM-YYYY'] as DateFormat[]).map((format) => (
             <TouchableOpacity
               key={format}
               style={styles.modalOption}

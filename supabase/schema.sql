@@ -13,8 +13,8 @@ CREATE TABLE public.users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_login TIMESTAMP WITH TIME ZONE,
   settings JSONB DEFAULT '{
-    "currency": "USD",
-    "date_format": "MM/DD/YYYY",
+    "currency": "INR",
+    "date_format": "DD-MMM-YYYY",
     "default_interest_type": "none",
     "default_compounding_frequency": "monthly",
     "default_reminder_days": 7,

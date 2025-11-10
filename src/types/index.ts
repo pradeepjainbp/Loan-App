@@ -6,7 +6,7 @@ export type LoanStatus = 'active' | 'closed' | 'overdue';
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'upi' | 'check' | 'other';
 export type UserRole = 'lender' | 'borrower';
 export type Currency = 'USD' | 'EUR' | 'INR' | 'GBP' | 'JPY' | 'AUD' | 'CAD';
-export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'DD-MMM-YYYY';
 
 export interface User {
   id: string;
