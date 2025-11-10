@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase';
 import { Loan, Repayment, DashboardMetrics, LoanCalculation } from '../types';
 import { calculateLoanDetails, determineLoanStatus } from '../utils/calculations';
 import { isDueWithinDays, isOverdue } from '../utils/dateUtils';
+import { retryWithBackoff } from '../utils/errorHandler';
 
 interface LoanState {
   loans: Loan[];
@@ -31,17 +32,22 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   fetchLoans: async () => {
     try {
       set({ loading: true });
-      const { data, error } = await supabase
-        .from('loans')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      
+      const data = await retryWithBackoff(async () => {
+        const { data, error } = await supabase
+          .from('loans')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data;
+      }, { maxRetries: 3, delayMs: 1000 });
+
       set({ loans: data || [] });
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error fetching loans:', error);
+      // Keep existing loans on error
     } finally {
       set({ loading: false });
     }
@@ -71,22 +77,25 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   createLoan: async (loanData) => {
     try {
       set({ loading: true });
-      
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
-        .from('loans')
-        .insert([{ ...loanData, user_id: user.id }])
-        .select()
-        .single();
+      const data = await retryWithBackoff(async () => {
+        const { data, error } = await supabase
+          .from('loans')
+          .insert([{ ...loanData, user_id: user.id }])
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
+        return data;
+      }, { maxRetries: 3, delayMs: 1000 });
 
       set((state) => ({
         loans: [data, ...state.loans],
       }));
-      
+
       get().calculateDashboardMetrics();
       return data;
     } catch (error) {
@@ -150,14 +159,17 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   createRepayment: async (repaymentData) => {
     try {
       set({ loading: true });
-      
-      const { data, error } = await supabase
-        .from('repayments')
-        .insert([repaymentData])
-        .select()
-        .single();
 
-      if (error) throw error;
+      const data = await retryWithBackoff(async () => {
+        const { data, error } = await supabase
+          .from('repayments')
+          .insert([repaymentData])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }, { maxRetries: 3, delayMs: 1000 });
 
       // Update local repayments
       set((state) => ({
@@ -176,12 +188,12 @@ export const useLoanStore = create<LoanState>((set, get) => ({
         const allRepayments = get().repayments[repaymentData.loan_id] || [];
         const calculation = calculateLoanDetails(loan, allRepayments);
         const newStatus = determineLoanStatus(loan, calculation.current_outstanding);
-        
+
         if (newStatus !== loan.status) {
           await get().updateLoan(loan.id, { status: newStatus });
         }
       }
-      
+
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error creating repayment:', error);

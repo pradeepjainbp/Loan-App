@@ -20,10 +20,11 @@ export default function EditLoanScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { loanId } = route.params;
   
-  const { loans, updateLoan } = useLoanStore();
+  const { loans, updateLoan, repayments } = useLoanStore();
   const { appUser } = useAuthStore();
-  
+
   const loan = loans.find((l) => l.id === loanId);
+  const loanRepayments = repayments[loanId] || [];
 
   const [isUserLender, setIsUserLender] = useState(loan?.is_user_lender ?? true);
   const [lenderName, setLenderName] = useState(loan?.lender_name || '');
@@ -102,6 +103,36 @@ export default function EditLoanScreen() {
       return;
     }
 
+    // Check if principal amount has changed and there are repayments
+    const newPrincipal = parseFloat(principalAmount);
+    if (loanRepayments.length > 0 && newPrincipal !== loan!.principal_amount) {
+      Alert.alert(
+        'Cannot Change Principal',
+        'You cannot change the principal amount after repayments have been made. Please delete the repayments first if you need to modify the principal amount.',
+        [{ text: 'OK', style: 'cancel' }]
+      );
+      return;
+    }
+
+    // Warn if changing interest rate
+    if (loanRepayments.length > 0 && parseFloat(interestRate) !== loan!.interest_rate) {
+      Alert.alert(
+        'Warning: Interest Rate Change',
+        'Changing the interest rate after repayments may affect calculations. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => submitLoan() },
+        ]
+      );
+      return;
+    }
+
+    await submitLoan();
+  };
+
+  const submitLoan = async () => {
+    if (!dueDate) return;
+
     const rawLoanData = {
       lender_name: isUserLender ? (appUser?.full_name || lenderName) : lenderName,
       borrower_name: borrowerName,
@@ -118,7 +149,7 @@ export default function EditLoanScreen() {
 
     const loanData = sanitizeLoanData(rawLoanData);
     const errors = validateLoanData(loanData);
-    
+
     if (errors.length > 0) {
       Alert.alert('Validation Error', errors.join('\n'));
       return;

@@ -37,6 +37,8 @@ interface AuthState {
   signOut: () => Promise<void>;
   initialize: () => Promise<void>;
   fetchAppUser: () => Promise<void>;
+  updateUserProfile: (updates: Partial<AppUser>) => Promise<void>;
+  updateUserSettings: (settings: Partial<AppUser['settings']>) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -301,6 +303,59 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, appUser: null, session: null });
     } catch (error) {
       console.error('Error signing out:', error);
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  updateUserProfile: async (updates: Partial<AppUser>) => {
+    try {
+      set({ loading: true });
+      const { user } = get();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      set({ appUser: data });
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  updateUserSettings: async (settings: Partial<AppUser['settings']>) => {
+    try {
+      set({ loading: true });
+      const { appUser } = get();
+      if (!appUser) throw new Error('User not found');
+
+      const updatedSettings = {
+        ...appUser.settings,
+        ...settings,
+      };
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({ settings: updatedSettings })
+        .eq('id', appUser.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      set({ appUser: data });
+    } catch (error) {
+      console.error('Error updating user settings:', error);
       throw error;
     } finally {
       set({ loading: false });

@@ -21,6 +21,7 @@ export default function LoansListScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<LoanStatus | 'all'>('all');
   const [filterRole, setFilterRole] = useState<'all' | 'lender' | 'borrower'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'dueDate'>('date');
 
   useEffect(() => {
     fetchLoans();
@@ -29,29 +30,42 @@ export default function LoansListScreen() {
   const currency = appUser?.settings?.currency || 'USD';
   const dateFormat = appUser?.settings?.date_format || 'MM/DD/YYYY';
 
-  const filteredLoans = loans.filter((loan) => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      loan.lender_name.toLowerCase().includes(searchLower) ||
-      loan.borrower_name.toLowerCase().includes(searchLower) ||
-      loan.notes?.toLowerCase().includes(searchLower) ||
-      loan.tags?.some((tag) => tag.toLowerCase().includes(searchLower));
+  const filteredLoans = loans
+    .filter((loan) => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        loan.lender_name.toLowerCase().includes(searchLower) ||
+        loan.borrower_name.toLowerCase().includes(searchLower) ||
+        loan.notes?.toLowerCase().includes(searchLower) ||
+        loan.tags?.some((tag) => tag.toLowerCase().includes(searchLower));
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (filterStatus !== 'all' && loan.status !== filterStatus) {
-      return false;
-    }
+      if (filterStatus !== 'all' && loan.status !== filterStatus) {
+        return false;
+      }
 
-    if (filterRole === 'lender' && !loan.is_user_lender) {
-      return false;
-    }
-    if (filterRole === 'borrower' && loan.is_user_lender) {
-      return false;
-    }
+      if (filterRole === 'lender' && !loan.is_user_lender) {
+        return false;
+      }
+      if (filterRole === 'borrower' && loan.is_user_lender) {
+        return false;
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'date':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'amount':
+          return b.principal_amount - a.principal_amount;
+        case 'dueDate':
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        default:
+          return 0;
+      }
+    });
 
   const getStatusConfig = (status: LoanStatus) => {
     switch (status) {
@@ -245,19 +259,42 @@ export default function LoansListScreen() {
           </View>
         </View>
 
+        {/* Sort Options */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterLabel}>Sort By</Text>
+          <View style={styles.filterRow}>
+            <FilterChip
+              active={sortBy === 'date'}
+              onPress={() => setSortBy('date')}
+              label="Newest"
+            />
+            <FilterChip
+              active={sortBy === 'amount'}
+              onPress={() => setSortBy('amount')}
+              label="Amount"
+            />
+            <FilterChip
+              active={sortBy === 'dueDate'}
+              onPress={() => setSortBy('dueDate')}
+              label="Due Soon"
+            />
+          </View>
+        </View>
+
         {/* Results Count */}
-        {searchQuery || filterStatus !== 'all' || filterRole !== 'all' ? (
+        {searchQuery || filterStatus !== 'all' || filterRole !== 'all' || sortBy !== 'date' ? (
           <View style={styles.resultsBar}>
             <Text style={styles.resultsText}>
               {filteredLoans.length} {filteredLoans.length === 1 ? 'loan' : 'loans'} found
             </Text>
-            {(searchQuery || filterStatus !== 'all' || filterRole !== 'all') && (
+            {(searchQuery || filterStatus !== 'all' || filterRole !== 'all' || sortBy !== 'date') && (
               <Button
                 mode="text"
                 onPress={() => {
                   setSearchQuery('');
                   setFilterStatus('all');
                   setFilterRole('all');
+                  setSortBy('date');
                 }}
                 labelStyle={styles.clearButtonLabel}
                 textColor={colors.primary}

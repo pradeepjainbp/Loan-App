@@ -1,11 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { Text, Card, Button, Divider } from 'react-native-paper';
+import { Text, Card, Button, Divider, Modal, Portal, RadioButton } from 'react-native-paper';
 import { useAuthStore } from '../../store/authStore';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
+import { Currency, DateFormat } from '../../types';
 
 export default function SettingsScreen() {
-  const { appUser, signOut } = useAuthStore();
+  const { appUser, signOut, updateUserSettings, loading } = useAuthStore();
+  const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
+  const [dateFormatModalVisible, setDateFormatModalVisible] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(appUser?.settings?.notifications_enabled ?? true);
+
+  const handleCurrencyChange = async (currency: Currency) => {
+    try {
+      await updateUserSettings({ currency });
+      setCurrencyModalVisible(false);
+      Alert.alert('Success', 'Currency updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update currency');
+    }
+  };
+
+  const handleDateFormatChange = async (dateFormat: DateFormat) => {
+    try {
+      await updateUserSettings({ date_format: dateFormat });
+      setDateFormatModalVisible(false);
+      Alert.alert('Success', 'Date format updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update date format');
+    }
+  };
+
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    try {
+      setNotificationsEnabled(enabled);
+      await updateUserSettings({ notifications_enabled: enabled });
+    } catch (error: any) {
+      setNotificationsEnabled(!enabled);
+      Alert.alert('Error', error.message || 'Failed to update notifications');
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -32,8 +66,8 @@ export default function SettingsScreen() {
       'This will permanently delete your account and all associated data. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete Account', 
+        {
+          text: 'Delete Account',
           style: 'destructive',
           onPress: () => Alert.alert('Coming Soon', 'Account deletion feature will be available soon.')
         },
@@ -68,8 +102,9 @@ export default function SettingsScreen() {
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
+    <View style={styles.container}>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
         {/* Profile Card */}
         <Card style={styles.profileCard}>
           <Card.Content style={styles.profileContent}>
@@ -101,19 +136,29 @@ export default function SettingsScreen() {
                 icon="💵"
                 title="Currency"
                 value={appUser?.settings?.currency || 'USD'}
+                onPress={() => setCurrencyModalVisible(true)}
               />
               <Divider style={styles.divider} />
               <SettingItem
                 icon="📅"
                 title="Date Format"
                 value={appUser?.settings?.date_format || 'MM/DD/YYYY'}
+                onPress={() => setDateFormatModalVisible(true)}
               />
               <Divider style={styles.divider} />
-              <SettingItem
-                icon="🔔"
-                title="Notifications"
-                value={appUser?.settings?.notifications_enabled ? 'Enabled' : 'Disabled'}
-              />
+              <TouchableOpacity
+                style={styles.settingItem}
+                onPress={() => handleNotificationsToggle(!notificationsEnabled)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingLeft}>
+                  <View style={styles.settingIcon}>
+                    <Text style={styles.settingIconText}>🔔</Text>
+                  </View>
+                  <Text style={styles.settingTitle}>Notifications</Text>
+                </View>
+                <Text style={styles.settingValue}>{notificationsEnabled ? 'Enabled' : 'Disabled'}</Text>
+              </TouchableOpacity>
             </Card.Content>
           </Card>
         </View>
@@ -199,8 +244,51 @@ export default function SettingsScreen() {
           <Text style={styles.footerText}>© 2025 LoanTracker</Text>
           <Text style={styles.footerText}>Made with ❤️</Text>
         </View>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+
+      {/* Currency Modal */}
+      <Portal>
+        <Modal visible={currencyModalVisible} onDismiss={() => setCurrencyModalVisible(false)} contentContainerStyle={styles.modalContent}>
+          <Text style={styles.modalTitle}>Select Currency</Text>
+          {(['USD', 'EUR', 'INR', 'GBP', 'JPY', 'AUD', 'CAD'] as Currency[]).map((currency) => (
+            <TouchableOpacity
+              key={currency}
+              style={styles.modalOption}
+              onPress={() => handleCurrencyChange(currency)}
+            >
+              <RadioButton
+                value={currency}
+                status={appUser?.settings?.currency === currency ? 'checked' : 'unchecked'}
+                onPress={() => handleCurrencyChange(currency)}
+              />
+              <Text style={styles.modalOptionText}>{currency}</Text>
+            </TouchableOpacity>
+          ))}
+        </Modal>
+      </Portal>
+
+      {/* Date Format Modal */}
+      <Portal>
+        <Modal visible={dateFormatModalVisible} onDismiss={() => setDateFormatModalVisible(false)} contentContainerStyle={styles.modalContent}>
+          <Text style={styles.modalTitle}>Select Date Format</Text>
+          {(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'] as DateFormat[]).map((format) => (
+            <TouchableOpacity
+              key={format}
+              style={styles.modalOption}
+              onPress={() => handleDateFormatChange(format)}
+            >
+              <RadioButton
+                value={format}
+                status={appUser?.settings?.date_format === format ? 'checked' : 'unchecked'}
+                onPress={() => handleDateFormatChange(format)}
+              />
+              <Text style={styles.modalOptionText}>{format}</Text>
+            </TouchableOpacity>
+          ))}
+        </Modal>
+      </Portal>
+    </View>
   );
 }
 
@@ -390,5 +478,31 @@ const styles = StyleSheet.create({
     ...typography.caption.regular,
     color: colors.text.tertiary,
     marginBottom: spacing.xs,
+  },
+
+  // Modal
+  modalContent: {
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginHorizontal: spacing.lg,
+  },
+  modalTitle: {
+    ...typography.heading.h4,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  modalOptionText: {
+    ...typography.body.medium,
+    color: colors.text.primary,
+    marginLeft: spacing.md,
   },
 });
