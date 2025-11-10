@@ -77,20 +77,50 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   createLoan: async (loanData) => {
     try {
       set({ loading: true });
+      console.log('📝 [LoanStore] Starting loan creation...');
+      console.log('📋 [LoanStore] Loan data:', loanData);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      // Get current user
+      console.log('👤 [LoanStore] Fetching current user...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      console.log('👤 [LoanStore] Current user:', user?.email || 'NOT FOUND');
+      if (userError) {
+        console.error('❌ [LoanStore] User fetch error:', userError);
+      }
+
+      if (!user) {
+        const errorMsg = 'User not authenticated - session may have expired. Please log in again.';
+        console.error('❌ [LoanStore]', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ [LoanStore] User authenticated:', user.id);
+      console.log('📤 [LoanStore] Inserting loan with user_id:', user.id);
 
       const data = await retryWithBackoff(async () => {
+        const insertData = { ...loanData, user_id: user.id };
+        console.log('📤 [LoanStore] Insert payload:', insertData);
+
         const { data, error } = await supabase
           .from('loans')
-          .insert([{ ...loanData, user_id: user.id }])
+          .insert([insertData])
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [LoanStore] Insert error:', error);
+          console.error('❌ [LoanStore] Error code:', error.code);
+          console.error('❌ [LoanStore] Error message:', error.message);
+          console.error('❌ [LoanStore] Error details:', error.details);
+          throw error;
+        }
+
+        console.log('✅ [LoanStore] Insert successful:', data);
         return data;
       }, { maxRetries: 3, delayMs: 1000 });
+
+      console.log('✅ [LoanStore] Loan created successfully:', data.id);
 
       set((state) => ({
         loans: [data, ...state.loans],
@@ -98,8 +128,10 @@ export const useLoanStore = create<LoanState>((set, get) => ({
 
       get().calculateDashboardMetrics();
       return data;
-    } catch (error) {
-      console.error('Error creating loan:', error);
+    } catch (error: any) {
+      console.error('❌ [LoanStore] Loan creation failed:', error);
+      console.error('❌ [LoanStore] Error message:', error?.message);
+      console.error('❌ [LoanStore] Error details:', error?.details);
       throw error;
     } finally {
       set({ loading: false });
