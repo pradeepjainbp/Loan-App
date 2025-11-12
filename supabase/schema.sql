@@ -57,6 +57,24 @@ CREATE TABLE public.repayments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Transactions table (for flexible payments and principal adjustments)
+CREATE TABLE public.transactions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
+  transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('principal_increase', 'principal_decrease', 'payment', 'interest_accrual')),
+  particulars TEXT NOT NULL, -- Description: "Lender paid additional principal", "Borrower paid", etc.
+  principal_change DECIMAL(15, 2) DEFAULT 0, -- Amount added/subtracted from principal
+  interest_portion DECIMAL(15, 2) DEFAULT 0, -- Interest portion of payment
+  paid_amount DECIMAL(15, 2) DEFAULT 0, -- Amount paid/received
+  balance_after DECIMAL(15, 2) NOT NULL, -- Outstanding balance after this transaction
+  payment_method TEXT CHECK (payment_method IN ('cash', 'bank_transfer', 'upi', 'check', 'other', NULL)),
+  transaction_reference TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL
+);
+
 -- Reminders table
 CREATE TABLE public.reminders (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -89,6 +107,9 @@ CREATE INDEX idx_repayments_loan_id ON public.repayments(loan_id);
 CREATE INDEX idx_repayments_payment_date ON public.repayments(payment_date);
 CREATE INDEX idx_reminders_loan_id ON public.reminders(loan_id);
 CREATE INDEX idx_attachments_loan_id ON public.attachments(loan_id);
+CREATE INDEX idx_transactions_loan_id ON public.transactions(loan_id);
+CREATE INDEX idx_transactions_date ON public.transactions(transaction_date);
+CREATE INDEX idx_transactions_type ON public.transactions(transaction_type);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -96,6 +117,7 @@ ALTER TABLE public.loans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.repayments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 CREATE POLICY "Users can view own profile"
@@ -212,6 +234,47 @@ CREATE POLICY "Users can delete attachments for own loans"
     EXISTS (
       SELECT 1 FROM public.loans
       WHERE loans.id = attachments.loan_id
+      AND loans.user_id = auth.uid()
+    )
+  );
+
+-- RLS Policies for transactions table
+CREATE POLICY "Users can view transactions for own loans"
+  ON public.transactions FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.loans
+      WHERE loans.id = transactions.loan_id
+      AND loans.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert transactions for own loans"
+  ON public.transactions FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.loans
+      WHERE loans.id = loan_id
+      AND loans.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update transactions for own loans"
+  ON public.transactions FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.loans
+      WHERE loans.id = transactions.loan_id
+      AND loans.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete transactions for own loans"
+  ON public.transactions FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.loans
+      WHERE loans.id = transactions.loan_id
       AND loans.user_id = auth.uid()
     )
   );

@@ -59,6 +59,25 @@ export interface Repayment {
   created_at: string;
 }
 
+export type TransactionType = 'principal_increase' | 'principal_decrease' | 'payment' | 'interest_accrual';
+
+export interface Transaction {
+  id: string;
+  loan_id: string;
+  transaction_date: string;
+  transaction_type: TransactionType;
+  particulars: string; // Description of transaction
+  principal_change: number; // Amount added/subtracted from principal
+  interest_portion: number; // Interest portion of payment
+  paid_amount: number; // Amount paid/received
+  balance_after: number; // Outstanding balance after this transaction
+  payment_method?: PaymentMethod;
+  transaction_reference?: string;
+  notes?: string;
+  created_at: string;
+  created_by?: string;
+}
+
 export interface Reminder {
   id: string;
   loan_id: string;

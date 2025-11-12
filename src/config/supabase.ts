@@ -56,4 +56,26 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true,
     flowType: 'pkce', // Use PKCE flow for better security and web compatibility
   },
+  global: {
+    headers: {
+      'X-Client-Info': 'loan-app',
+    },
+  },
 });
+
+// Add session refresh interceptor for web
+if (isWeb) {
+  // Refresh session every 5 minutes to keep it alive
+  setInterval(async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.warn('[Supabase] Session refresh error:', error.message);
+      } else if (session) {
+        console.log('[Supabase] Session refreshed successfully');
+      }
+    } catch (err) {
+      console.warn('[Supabase] Session refresh failed:', err);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+}

@@ -60,27 +60,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Get current session
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[AuthStore] Getting current session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('[AuthStore] Session error:', sessionError);
+      }
 
       if (session) {
+        console.log('[AuthStore] Session found:', session.user.email);
         set({ user: session.user, session });
         await get().fetchAppUser();
+      } else {
+        console.log('[AuthStore] No session found');
       }
 
       // Listen for auth changes
       const listener = supabase.auth.onAuthStateChange(async (_event, session) => {
-        console.log('Auth state change:', _event, session);
+        console.log('[AuthStore] Auth state change:', _event, session?.user?.email);
         set({ user: session?.user ?? null, session });
         if (session?.user) {
+          console.log('[AuthStore] User authenticated:', session.user.email);
           await get().fetchAppUser();
         } else {
+          console.log('[AuthStore] User logged out');
           set({ appUser: null });
         }
       });
 
       set({ authListener: listener, initialized: true });
+      console.log('[AuthStore] Initialization complete');
     } catch (error) {
-      console.error('Error initializing auth:', error);
+      console.error('[AuthStore] Error initializing auth:', error);
+      set({ initialized: true }); // Still mark as initialized even on error
     } finally {
       set({ loading: false });
     }

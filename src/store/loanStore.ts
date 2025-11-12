@@ -1,23 +1,27 @@
 import { create } from 'zustand';
 import { supabase } from '../config/supabase';
-import { Loan, Repayment, DashboardMetrics, LoanCalculation } from '../types';
+import { Loan, Repayment, DashboardMetrics, LoanCalculation, Transaction } from '../types';
 import { calculateLoanDetails, determineLoanStatus } from '../utils/calculations';
 import { isDueWithinDays, isOverdue } from '../utils/dateUtils';
 import { retryWithBackoff } from '../utils/errorHandler';
+import { calculateOutstandingBalance, getTransactionSummary } from '../utils/transactionCalculations';
 
 interface LoanState {
   loans: Loan[];
   repayments: Record<string, Repayment[]>;
+  transactions: Record<string, Transaction[]>;
   loading: boolean;
   dashboardMetrics: DashboardMetrics | null;
-  
+
   // Actions
   fetchLoans: () => Promise<void>;
   fetchRepayments: (loanId: string) => Promise<void>;
+  fetchTransactions: (loanId: string) => Promise<void>;
   createLoan: (loan: Omit<Loan, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<Loan>;
   updateLoan: (id: string, updates: Partial<Loan>) => Promise<void>;
   deleteLoan: (id: string) => Promise<void>;
   createRepayment: (repayment: Omit<Repayment, 'id' | 'created_at'>) => Promise<void>;
+  createTransaction: (transaction: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   calculateDashboardMetrics: () => void;
   getLoanCalculation: (loanId: string) => LoanCalculation | null;
   subscribeToLoans: () => () => void;
@@ -26,6 +30,7 @@ interface LoanState {
 export const useLoanStore = create<LoanState>((set, get) => ({
   loans: [],
   repayments: {},
+  transactions: {},
   loading: false,
   dashboardMetrics: null,
 
@@ -74,11 +79,49 @@ export const useLoanStore = create<LoanState>((set, get) => ({
     }
   },
 
+  fetchTransactions: async (loanId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('loan_id', loanId)
+        .order('transaction_date', { ascending: true });
+
+      if (error) throw error;
+
+      set((state) => ({
+        transactions: {
+          ...state.transactions,
+          [loanId]: data || [],
+        },
+      }));
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    }
+  },
+
   createLoan: async (loanData) => {
     try {
       set({ loading: true });
       console.log('📝 [LoanStore] Starting loan creation...');
       console.log('📋 [LoanStore] Loan data:', loanData);
+
+      // First, verify session is still valid
+      console.log('🔍 [LoanStore] Verifying session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('❌ [LoanStore] Session verification error:', sessionError);
+        throw new Error('Session verification failed: ' + sessionError.message);
+      }
+
+      if (!session) {
+        const errorMsg = 'Session expired. Please log in again.';
+        console.error('❌ [LoanStore]', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ [LoanStore] Session valid:', session.user.email);
 
       // Get current user
       console.log('👤 [LoanStore] Fetching current user...');
@@ -229,6 +272,43 @@ export const useLoanStore = create<LoanState>((set, get) => ({
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error creating repayment:', error);
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  createTransaction: async (transactionData) => {
+    try {
+      set({ loading: true });
+      console.log('📝 [LoanStore] Creating transaction:', transactionData);
+
+      const data = await retryWithBackoff(async () => {
+        const { data, error } = await supabase
+          .from('transactions')
+          .insert([transactionData])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }, { maxRetries: 3, delayMs: 1000 });
+
+      // Update local transactions
+      set((state) => ({
+        transactions: {
+          ...state.transactions,
+          [transactionData.loan_id]: [
+            ...(state.transactions[transactionData.loan_id] || []),
+            data,
+          ],
+        },
+      }));
+
+      console.log('✅ [LoanStore] Transaction created:', data.id);
+      get().calculateDashboardMetrics();
+    } catch (error) {
+      console.error('Error creating transaction:', error);
       throw error;
     } finally {
       set({ loading: false });
