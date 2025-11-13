@@ -13,6 +13,8 @@ import CreateLoanScreen from '../screens/loans/CreateLoanScreen';
 import EditLoanScreen from '../screens/loans/EditLoanScreen';
 import CreateRepaymentScreen from '../screens/repayments/CreateRepaymentScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+import TransactionHistoryScreen from '../screens/loans/TransactionHistoryScreen';
+import AddTransactionScreen from '../screens/loans/AddTransactionScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -21,6 +23,8 @@ export type RootStackParamList = {
   CreateLoan: undefined;
   EditLoan: { loanId: string };
   CreateRepayment: { loanId: string };
+  TransactionHistory: { loanId: string };
+  AddTransaction: { loanId: string };
 };
 
 export type MainTabParamList = {
@@ -115,6 +119,16 @@ export default function AppNavigator() {
               name="CreateRepayment"
               component={CreateRepaymentScreen}
               options={{ title: 'Record Repayment' }}
+            />
+            <Stack.Screen
+              name="TransactionHistory"
+              component={TransactionHistoryScreen}
+              options={{ title: 'Transaction History' }}
+            />
+            <Stack.Screen
+              name="AddTransaction"
+              component={AddTransactionScreen}
+              options={{ title: 'Add Transaction' }}
             />
           </>
         )}

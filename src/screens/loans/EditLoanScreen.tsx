@@ -31,7 +31,7 @@ export default function EditLoanScreen() {
   const [borrowerName, setBorrowerName] = useState(loan?.borrower_name || '');
   const [principalAmount, setPrincipalAmount] = useState(loan?.principal_amount.toString() || '');
   const [startDate, setStartDate] = useState<Date>(loan ? new Date(loan.start_date) : new Date());
-  const [dueDate, setDueDate] = useState<Date | null>(loan ? new Date(loan.due_date) : null);
+  const [dueDate, setDueDate] = useState<Date | null>(loan?.due_date ? new Date(loan.due_date) : null);
   const [interestType, setInterestType] = useState<InterestType>(loan?.interest_type || 'none');
   const [interestRate, setInterestRate] = useState(loan?.interest_rate?.toString() || '');
   const [compoundingFrequency, setCompoundingFrequency] = useState<CompoundingFrequency>(
@@ -67,9 +67,9 @@ export default function EditLoanScreen() {
 
   const calculatePreview = () => {
     const principal = parseFloat(principalAmount);
-    const rate = parseFloat(interestRate);
     
-    if (!principal || !dueDate) return null;
+    if (!principal) return null;
+    
     if (interestType === 'none') {
       return {
         principal,
@@ -78,16 +78,19 @@ export default function EditLoanScreen() {
       };
     }
 
+    const rate = parseFloat(interestRate);
     if (!rate) return null;
 
+    // Use due date if available, otherwise use current date for preview
+    const endDate = dueDate || new Date();
     let interest = 0;
     const startDateStr = startDate.toISOString();
-    const dueDateStr = dueDate.toISOString();
+    const endDateStr = endDate.toISOString();
     
     if (interestType === 'simple') {
-      interest = calculateSimpleInterest(principal, rate, startDateStr, dueDateStr);
+      interest = calculateSimpleInterest(principal, rate, startDateStr, endDateStr);
     } else if (interestType === 'compound') {
-      interest = calculateCompoundInterest(principal, rate, startDateStr, dueDateStr, compoundingFrequency);
+      interest = calculateCompoundInterest(principal, rate, startDateStr, endDateStr, compoundingFrequency);
     }
 
     return {
@@ -98,11 +101,6 @@ export default function EditLoanScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!dueDate) {
-      Alert.alert('Validation Error', 'Please select a due date');
-      return;
-    }
-
     // Check if principal amount has changed and there are repayments
     const newPrincipal = parseFloat(principalAmount);
     if (loanRepayments.length > 0 && newPrincipal !== loan!.principal_amount) {
@@ -131,14 +129,12 @@ export default function EditLoanScreen() {
   };
 
   const submitLoan = async () => {
-    if (!dueDate) return;
-
     const rawLoanData = {
       lender_name: isUserLender ? (appUser?.full_name || lenderName) : lenderName,
       borrower_name: borrowerName,
       principal_amount: parseFloat(principalAmount),
       start_date: startDate.toISOString(),
-      due_date: dueDate.toISOString(),
+      due_date: dueDate ? dueDate.toISOString() : null,
       interest_type: interestType,
       interest_rate: interestType === 'none' ? 0 : parseFloat(interestRate),
       compounding_frequency: interestType === 'compound' ? compoundingFrequency : undefined,
@@ -259,13 +255,14 @@ export default function EditLoanScreen() {
               />
             </View>
             <View style={styles.dateColumn}>
-              <Text style={styles.inputLabel}>Due Date *</Text>
+              <Text style={styles.inputLabel}>Due Date (Optional)</Text>
               <DatePicker
                 label=""
                 value={dueDate}
                 onChange={(date) => setDueDate(date)}
                 minDate={startDate}
               />
+              <Text style={styles.helperText}>Leave empty for open-ended loans</Text>
             </View>
           </View>
         </View>
@@ -327,7 +324,6 @@ export default function EditLoanScreen() {
           <Card style={styles.previewCard}>
             <Card.Content style={styles.previewContent}>
               <View style={styles.previewHeader}>
-                <Text style={styles.previewIcon}>📊</Text>
                 <Text style={styles.previewTitle}>Updated Summary</Text>
               </View>
               
@@ -515,6 +511,11 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: spacing.xs,
   },
+  helperText: {
+    ...typography.caption.regular,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
+  },
   
   // Date Pickers
   dateRow: {
@@ -564,19 +565,18 @@ const styles = StyleSheet.create({
   // Preview Card
   previewCard: {
     marginBottom: spacing.xl,
-    backgroundColor: colors.semantic.warning.light,
+    backgroundColor: colors.background.primary,
     borderRadius: borderRadius.lg,
     ...elevation.sm,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.semantic.warning.main,
   },
   previewContent: {
     padding: spacing.lg,
   },
   previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.ui.border,
   },
   previewIcon: {
     fontSize: 24,
@@ -589,13 +589,10 @@ const styles = StyleSheet.create({
   previewGrid: {
     flexDirection: 'row',
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   previewItem: {
     flex: 1,
-    backgroundColor: colors.background.primary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
   },
   previewLabel: {
     ...typography.label.medium,
@@ -603,24 +600,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   previewValue: {
-    ...typography.amount.tiny,
+    ...typography.body.large,
     color: colors.text.primary,
+    fontWeight: '600',
   },
   previewTotal: {
-    backgroundColor: colors.background.primary,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.ui.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   previewTotalLabel: {
-    ...typography.heading.h5,
-    color: colors.text.primary,
+    ...typography.label.large,
+    color: colors.text.secondary,
   },
   previewTotalValue: {
     ...typography.amount.medium,
-    color: colors.semantic.warning.dark,
+    color: colors.semantic.warning.main,
+    fontWeight: '700',
   },
   
   // Submit Button

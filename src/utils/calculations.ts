@@ -1,5 +1,5 @@
 import { differenceInDays, parseISO } from 'date-fns';
-import { InterestType, CompoundingFrequency, Loan, Repayment, LoanCalculation } from '../types';
+import { InterestType, CompoundingFrequency, Loan, Repayment, LoanCalculation, LoanStatus } from '../types';
 
 /**
  * Calculate simple interest
@@ -136,6 +136,11 @@ export function determineLoanStatus(
     return 'closed';
   }
   
+  // If no due date, loan is active as long as there's outstanding balance
+  if (!loan.due_date) {
+    return 'active';
+  }
+  
   const today = new Date();
   const dueDate = parseISO(loan.due_date);
   
@@ -182,10 +187,6 @@ export function validateLoanData(data: Partial<Loan>): string[] {
   
   if (!data.start_date) {
     errors.push('Start date is required');
-  }
-  
-  if (!data.due_date) {
-    errors.push('Due date is required');
   }
   
   if (data.start_date && data.due_date) {

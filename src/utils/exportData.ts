@@ -67,10 +67,15 @@ export function generateJSON(loans: Loan[], repayments: Repayment[]): string {
 }
 
 /**
+ * Detect if we're on web platform
+ */
+const isWeb = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+
+/**
  * Download data as file (for web)
  */
 export function downloadFile(content: string, filename: string, mimeType: string = 'text/plain'): void {
-  if (typeof window === 'undefined') return;
+  if (!isWeb) return;
 
   const blob = new Blob([content], { type: mimeType });
   const url = window.URL.createObjectURL(blob);
@@ -86,44 +91,69 @@ export function downloadFile(content: string, filename: string, mimeType: string
 /**
  * Share data as text (for mobile)
  */
-export async function shareData(content: string, title: string): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.share) {
-    // Fallback: copy to clipboard
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(content);
-      return;
-    }
-    throw new Error('Share API not available');
+export async function shareData(content: string, title: string, filename: string): Promise<void> {
+  // Try React Native Share first
+  try {
+    const Share = require('react-native').Share;
+    await Share.share({
+      message: content,
+      title: title,
+    });
+    return;
+  } catch (error) {
+    // React Native not available or share failed, try web API
   }
 
-  try {
-    await navigator.share({
-      title,
-      text: content,
-    });
-  } catch (error: any) {
-    if (error.name !== 'AbortError') {
-      throw error;
+  // Try web share API
+  if (typeof navigator !== 'undefined' && navigator.share) {
+    try {
+      await navigator.share({
+        title,
+        text: content,
+      });
+      return;
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        // User cancelled, ignore
+      }
     }
   }
+
+  // Fallback: copy to clipboard
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    await navigator.clipboard.writeText(content);
+    throw new Error('Data copied to clipboard');
+  }
+  
+  throw new Error('Share/Export not available on this platform');
 }
 
 /**
  * Export data to CSV file
  */
-export function exportToCSV(loans: Loan[], repayments: Repayment[]): void {
+export async function exportToCSV(loans: Loan[], repayments: Repayment[]): Promise<void> {
   const csv = generateCSV(loans, repayments);
   const filename = `loan-app-export-${new Date().toISOString().split('T')[0]}.csv`;
-  downloadFile(csv, filename, 'text/csv');
+  
+  if (isWeb) {
+    downloadFile(csv, filename, 'text/csv');
+  } else {
+    await shareData(csv, 'Export Loan Data (CSV)', filename);
+  }
 }
 
 /**
  * Export data to JSON file
  */
-export function exportToJSON(loans: Loan[], repayments: Repayment[]): void {
+export async function exportToJSON(loans: Loan[], repayments: Repayment[]): Promise<void> {
   const json = generateJSON(loans, repayments);
   const filename = `loan-app-export-${new Date().toISOString().split('T')[0]}.json`;
-  downloadFile(json, filename, 'application/json');
+  
+  if (isWeb) {
+    downloadFile(json, filename, 'application/json');
+  } else {
+    await shareData(json, 'Export Loan Data (JSON)', filename);
+  }
 }
 
 /**

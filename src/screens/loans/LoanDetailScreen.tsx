@@ -5,7 +5,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
-import { formatCurrency } from '../../utils/calculations';
+import { formatCurrency, calculateLoanInterest, calculateSimpleInterest, calculateCompoundInterest } from '../../utils/calculations';
 import { formatDate } from '../../utils/dateUtils';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
@@ -198,24 +198,46 @@ export default function LoanDetailScreen() {
             <Text style={styles.detailValue}>{formatDate(loan.start_date, dateFormat)}</Text>
           </View>
           
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Due Date</Text>
-            <Text style={styles.detailValue}>{formatDate(loan.due_date, dateFormat)}</Text>
-          </View>
-          
           {loan.interest_type !== 'none' && (
             <>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Interest Type</Text>
                 <Text style={styles.detailValue}>
-                  {loan.interest_type === 'simple' ? 'Simple' : 'Compound'}
+                  {loan.interest_type === 'simple' 
+                    ? 'Simple' 
+                    : `Compound - ${loan.compounding_frequency ? 
+                        loan.compounding_frequency.charAt(0).toUpperCase() + loan.compounding_frequency.slice(1) 
+                        : 'Monthly'}`
+                  }
                 </Text>
               </View>
               
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Interest Rate</Text>
-                <Text style={styles.detailValue}>{loan.interest_rate}%</Text>
+                <Text style={styles.detailValue}>{loan.interest_rate}% per annum</Text>
               </View>
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Interest Till Date</Text>
+                <Text style={[styles.detailValue, { color: colors.semantic.warning.main, fontWeight: '600' }]}>
+                  {formatCurrency(calculation.interest_amount, currency)}
+                </Text>
+              </View>
+
+              {calculation.current_outstanding > 0 && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Daily Interest (Current Balance)</Text>
+                  <Text style={[styles.detailValue, { color: colors.semantic.error.main, fontWeight: '700' }]}>
+                    {formatCurrency(
+                      (() => {
+                        const dailyRate = loan.interest_rate / 100 / 365;
+                        return calculation.current_outstanding * dailyRate;
+                      })(),
+                      currency
+                    )} per day
+                  </Text>
+                </View>
+              )}
             </>
           )}
           
@@ -241,7 +263,7 @@ export default function LoanDetailScreen() {
         </Card.Content>
       </Card>
 
-      {/* Repayment History */}
+      {/* Repayment History - Table Format */}
       <Card style={styles.repaymentCard}>
         <Card.Content style={styles.repaymentContent}>
           <View style={styles.repaymentHeader}>
@@ -260,36 +282,112 @@ export default function LoanDetailScreen() {
               <Text style={styles.emptyText}>Record the first repayment to track progress</Text>
             </View>
           ) : (
-            <View style={styles.repaymentList}>
-              {loanRepayments.map((repayment, index) => (
-                <View 
-                  key={repayment.id} 
-                  style={[
-                    styles.repaymentItem,
-                    index !== loanRepayments.length - 1 && styles.repaymentItemBorder
-                  ]}
-                >
-                  <View style={styles.repaymentLeft}>
-                    <View style={styles.repaymentIconContainer}>
-                      <Text style={styles.repaymentIcon}>💳</Text>
-                    </View>
-                    <View style={styles.repaymentInfo}>
-                      <Text style={styles.repaymentAmount}>
-                        {formatCurrency(repayment.payment_amount, currency)}
-                      </Text>
-                      <Text style={styles.repaymentDate}>
+            <View style={styles.tableContainer}>
+              {/* Table Header */}
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, styles.dateColumn]}>Date</Text>
+                <Text style={[styles.tableHeaderCell, styles.particularsColumn]}>Particulars</Text>
+                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Interest</Text>
+                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Paid</Text>
+                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Balance</Text>
+                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Int Per Day</Text>
+              </View>
+              
+              {/* Account Opening Row */}
+              <View style={styles.tableRow}>
+                <Text style={[styles.tableCell, styles.dateColumn]}>
+                  {formatDate(loan.start_date, dateFormat)}
+                </Text>
+                <Text style={[styles.tableCell, styles.particularsColumn]}>Account Opening</Text>
+                <Text style={[styles.tableCell, styles.amountColumn]}>-</Text>
+                <Text style={[styles.tableCell, styles.amountColumn]}>
+                  {formatCurrency(loan.principal_amount, currency)}
+                </Text>
+                <Text style={[styles.tableCell, styles.amountColumn]}>
+                  {formatCurrency(loan.principal_amount, currency)}
+                </Text>
+                <Text style={[styles.tableCell, styles.amountColumn]}>
+                  {loan.interest_type !== 'none' 
+                    ? formatCurrency((loan.principal_amount * loan.interest_rate / 100 / 365), currency)
+                    : '-'
+                  }
+                </Text>
+              </View>
+              
+              {/* Repayment Rows with running balance */}
+              {(() => {
+                let runningBalance = loan.principal_amount;
+                let previousPaymentDate = loan.start_date;
+                
+                // Sort repayments by date (ascending - oldest first)
+                const sortedRepayments = [...loanRepayments].sort((a, b) => 
+                  new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()
+                );
+                
+                return sortedRepayments.map((repayment, index) => {
+                  // Calculate interest on the RUNNING BALANCE for this period
+                  const interestForThisPeriod = loan.interest_type !== 'none' 
+                    ? (() => {
+                        if (loan.interest_type === 'simple') {
+                          return calculateSimpleInterest(
+                            runningBalance,
+                            loan.interest_rate,
+                            previousPaymentDate,
+                            repayment.payment_date
+                          );
+                        } else if (loan.interest_type === 'compound' && loan.compounding_frequency) {
+                          return calculateCompoundInterest(
+                            runningBalance,
+                            loan.interest_rate,
+                            previousPaymentDate,
+                            repayment.payment_date,
+                            loan.compounding_frequency
+                          );
+                        }
+                        return 0;
+                      })()
+                    : 0;
+                  
+                  // Add interest to balance, then subtract payment
+                  runningBalance = runningBalance + interestForThisPeriod - repayment.payment_amount;
+                  
+                  // Calculate daily interest on the new balance
+                  const dailyInterest = loan.interest_type !== 'none' && runningBalance > 0
+                    ? (runningBalance * loan.interest_rate / 100 / 365)
+                    : 0;
+                  
+                  previousPaymentDate = repayment.payment_date;
+                  
+                  return (
+                    <View 
+                      key={repayment.id} 
+                      style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+                    >
+                      <Text style={[styles.tableCell, styles.dateColumn]}>
                         {formatDate(repayment.payment_date, dateFormat)}
                       </Text>
-                      <Text style={styles.repaymentMethod}>
-                        via {repayment.payment_method.replace('_', ' ')}
+                      <Text style={[styles.tableCell, styles.particularsColumn]}>
+                        {repayment.notes || `via ${repayment.payment_method.replace('_', ' ')}`}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.amountColumn]}>
+                        {formatCurrency(Math.abs(interestForThisPeriod), currency)}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.amountColumn, { color: colors.semantic.success.main }]}>
+                        {formatCurrency(repayment.payment_amount, currency)}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.amountColumn, { fontWeight: '600' }]}>
+                        {formatCurrency(Math.max(0, runningBalance), currency)}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.amountColumn, { fontSize: 11 }]}>
+                        {runningBalance > 0 
+                          ? formatCurrency(dailyInterest, currency)
+                          : '-'
+                        }
                       </Text>
                     </View>
-                  </View>
-                  {repayment.notes && (
-                    <Text style={styles.repaymentNotes}>{repayment.notes}</Text>
-                  )}
-                </View>
-              ))}
+                  );
+                });
+              })()}
             </View>
           )}
         </Card.Content>
@@ -310,6 +408,17 @@ export default function LoanDetailScreen() {
         </Button>
 
         <View style={styles.secondaryActions}>
+          <Button
+            mode="outlined"
+            onPress={() => navigation.navigate('TransactionHistory', { loanId })}
+            style={styles.secondaryButton}
+            labelStyle={styles.secondaryButtonLabel}
+            textColor={colors.primary}
+            icon="history"
+          >
+            History
+          </Button>
+
           <Button
             mode="outlined"
             onPress={handleEdit}
@@ -698,6 +807,54 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginLeft: 56,
     fontStyle: 'italic',
+  },
+  
+  // Table Styles
+  tableContainer: {
+    borderWidth: 1,
+    borderColor: colors.ui.border,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: colors.background.secondary,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.ui.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  tableHeaderCell: {
+    ...typography.label.small,
+    color: colors.text.secondary,
+    fontWeight: '700',
+    textAlign: 'left',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.ui.divider,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.background.primary,
+  },
+  tableRowAlt: {
+    backgroundColor: colors.background.secondary,
+  },
+  tableCell: {
+    ...typography.body.small,
+    color: colors.text.primary,
+    textAlign: 'left',
+  },
+  dateColumn: {
+    flex: 1.2,
+  },
+  particularsColumn: {
+    flex: 2,
+  },
+  amountColumn: {
+    flex: 1,
+    textAlign: 'right',
   },
   
   // Actions

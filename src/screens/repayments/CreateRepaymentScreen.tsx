@@ -4,8 +4,9 @@ import { Text, TextInput, Button, SegmentedButtons, Card } from 'react-native-pa
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
+import { useAuthStore } from '../../store/authStore';
 import { PaymentMethod } from '../../types';
-import { validateRepaymentData } from '../../utils/calculations';
+import { validateRepaymentData, formatCurrency } from '../../utils/calculations';
 import { sanitizeRepaymentData } from '../../utils/sanitize';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
@@ -20,8 +21,10 @@ export default function CreateRepaymentScreen() {
   const { loanId } = route.params;
   
   const { loans, createRepayment, getLoanCalculation } = useLoanStore();
+  const { appUser } = useAuthStore();
   const loan = loans.find((l) => l.id === loanId);
   const calculation = loan ? getLoanCalculation(loanId) : null;
+  const currency = appUser?.settings?.currency || 'USD';
 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
@@ -63,7 +66,7 @@ export default function CreateRepaymentScreen() {
     if (repaymentData.payment_amount > calculation.current_outstanding) {
       Alert.alert(
         'Warning',
-        `Payment amount ($${repaymentData.payment_amount.toFixed(2)}) exceeds outstanding balance ($${calculation.current_outstanding.toFixed(2)}). Continue?`,
+        `Payment amount (${formatCurrency(repaymentData.payment_amount, currency)}) exceeds outstanding balance (${formatCurrency(calculation.current_outstanding, currency)}). Continue?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Continue', onPress: () => submitRepayment(repaymentData) },
@@ -105,7 +108,7 @@ export default function CreateRepaymentScreen() {
               <View style={styles.balanceInfo}>
                 <Text style={styles.balanceLabel}>Outstanding Balance</Text>
                 <Text style={styles.balanceAmount}>
-                  ${calculation.current_outstanding.toFixed(2)}
+                  {formatCurrency(calculation.current_outstanding, currency)}
                 </Text>
               </View>
             </View>
@@ -114,13 +117,13 @@ export default function CreateRepaymentScreen() {
               <View style={styles.balanceDetailRow}>
                 <Text style={styles.balanceDetailLabel}>Total Due:</Text>
                 <Text style={styles.balanceDetailValue}>
-                  ${calculation.total_amount_due.toFixed(2)}
+                  {formatCurrency(calculation.total_amount_due, currency)}
                 </Text>
               </View>
               <View style={styles.balanceDetailRow}>
                 <Text style={styles.balanceDetailLabel}>Already Paid:</Text>
                 <Text style={[styles.balanceDetailValue, { color: colors.semantic.success.main }]}>
-                  ${calculation.total_repaid.toFixed(2)}
+                  {formatCurrency(calculation.total_repaid, currency)}
                 </Text>
               </View>
             </View>
@@ -168,7 +171,7 @@ export default function CreateRepaymentScreen() {
               <View style={styles.amountPreview}>
                 <Text style={styles.amountPreviewLabel}>Remaining after payment:</Text>
                 <Text style={styles.amountPreviewValue}>
-                  ${Math.max(0, calculation.current_outstanding - parseFloat(paymentAmount)).toFixed(2)}
+                  {formatCurrency(Math.max(0, calculation.current_outstanding - parseFloat(paymentAmount)), currency)}
                 </Text>
               </View>
             )}

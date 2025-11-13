@@ -310,12 +310,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     try {
       set({ loading: true });
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      console.log('[AuthStore] Signing out...');
+      
+      // Clear local state first
       set({ user: null, appUser: null, session: null });
+      
+      // Then try to sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      // Ignore "Auth session missing" error since we're already signed out locally
+      if (error && !error.message?.includes('Auth session missing')) {
+        console.error('[AuthStore] Sign out error:', error);
+        throw error;
+      }
+      
+      console.log('[AuthStore] Sign out successful');
     } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
+      console.error('[AuthStore] Error signing out:', error);
+      // Even if there's an error, we've already cleared local state
+      // So user will be logged out from the app
     } finally {
       set({ loading: false });
     }

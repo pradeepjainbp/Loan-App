@@ -36,7 +36,7 @@ export interface Loan {
   borrower_name: string;
   principal_amount: number;
   start_date: string;
-  due_date: string;
+  due_date: string | null; // Made optional for informal loans
   interest_type: InterestType;
   interest_rate: number;
   compounding_frequency?: CompoundingFrequency;

@@ -44,15 +44,29 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', onPress: () => signOut(), style: 'destructive' },
-      ]
-    );
+  const handleSignOut = async () => {
+    console.log('[Settings] Sign out button clicked');
+    
+    // Use window.confirm for web compatibility
+    const confirmed = typeof window !== 'undefined' 
+      ? window.confirm('Are you sure you want to sign out?')
+      : true;
+    
+    if (!confirmed) {
+      console.log('[Settings] Sign out cancelled');
+      return;
+    }
+    
+    try {
+      console.log('[Settings] Calling signOut...');
+      await signOut();
+      console.log('[Settings] Sign out successful');
+    } catch (error: any) {
+      console.error('[Settings] Sign out error:', error);
+      if (typeof window !== 'undefined') {
+        window.alert('Error: ' + (error.message || 'Failed to sign out'));
+      }
+    }
   };
 
   const handleExportData = () => {
@@ -62,11 +76,11 @@ export default function SettingsScreen() {
       [
         {
           text: 'CSV',
-          onPress: () => {
+          onPress: async () => {
             try {
               const allRepayments = Object.values(repayments).flat();
-              exportToCSV(loans, allRepayments);
-              Alert.alert('Success', 'Data exported as CSV file');
+              await exportToCSV(loans, allRepayments);
+              Alert.alert('Success', 'Data exported successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to export data');
             }
@@ -74,11 +88,11 @@ export default function SettingsScreen() {
         },
         {
           text: 'JSON',
-          onPress: () => {
+          onPress: async () => {
             try {
               const allRepayments = Object.values(repayments).flat();
-              exportToJSON(loans, allRepayments);
-              Alert.alert('Success', 'Data exported as JSON file');
+              await exportToJSON(loans, allRepayments);
+              Alert.alert('Success', 'Data exported successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to export data');
             }

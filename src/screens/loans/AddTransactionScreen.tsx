@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Text, TextInput, Button, SegmentedButtons, Card, useTheme } from 'react-native-paper';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DatePicker from '../../components/DatePicker';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
 import { Transaction, TransactionType } from '../../types';
 import { getTransactionSummary } from '../../utils/transactionCalculations';
+import { formatCurrency } from '../../utils/calculations';
 
 interface AddTransactionScreenProps {
   route: any;
@@ -31,7 +32,6 @@ export default function AddTransactionScreen({
   const [particulars, setParticulars] = useState('');
   const [notes, setNotes] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   if (!loan || !summary) {
@@ -41,13 +41,6 @@ export default function AddTransactionScreen({
       </View>
     );
   }
-
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (selectedDate) {
-      setTransactionDate(selectedDate);
-    }
-    setShowDatePicker(false);
-  };
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -108,10 +101,7 @@ export default function AddTransactionScreen({
         <Card.Content>
           <Text style={styles.balanceLabel}>Current Outstanding Balance</Text>
           <Text style={styles.balanceAmount}>
-            {new Intl.NumberFormat('en-IN', {
-              style: 'currency',
-              currency,
-            }).format(summary.outstandingBalance)}
+            {formatCurrency(summary.outstandingBalance, currency)}
           </Text>
         </Card.Content>
       </Card>
@@ -162,22 +152,14 @@ export default function AddTransactionScreen({
       />
 
       {/* Transaction Date */}
-      <Button
-        mode="outlined"
-        onPress={() => setShowDatePicker(true)}
-        style={styles.dateButton}
-      >
-        Date: {transactionDate.toLocaleDateString()}
-      </Button>
-
-      {showDatePicker && (
-        <DateTimePicker
+      <View style={styles.dateContainer}>
+        <Text style={styles.label}>Transaction Date</Text>
+        <DatePicker
           value={transactionDate}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
+          onChange={setTransactionDate}
+          label="Transaction Date"
         />
-      )}
+      </View>
 
       {/* Notes */}
       <TextInput
@@ -232,8 +214,8 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 12,
   },
-  dateButton: {
-    marginBottom: 12,
+  dateContainer: {
+    marginBottom: 16,
   },
   submitButton: {
     marginTop: 20,

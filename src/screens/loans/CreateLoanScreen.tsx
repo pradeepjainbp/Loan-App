@@ -78,11 +78,6 @@ export default function CreateLoanScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!dueDate) {
-      Alert.alert('Validation Error', 'Please select a due date');
-      return;
-    }
-
     if (!principalAmount || parseFloat(principalAmount) <= 0) {
       Alert.alert('Validation Error', 'Please enter a valid principal amount');
       return;
@@ -98,7 +93,7 @@ export default function CreateLoanScreen() {
       borrower_name: borrowerName,
       principal_amount: parseFloat(principalAmount),
       start_date: startDate.toISOString(),
-      due_date: dueDate.toISOString(),
+      due_date: dueDate ? dueDate.toISOString() : null, // Made optional
       interest_type: interestType,
       interest_rate: interestType === 'none' ? 0 : parseFloat(interestRate),
       compounding_frequency: interestType === 'compound' ? compoundingFrequency : undefined,
@@ -226,13 +221,16 @@ export default function CreateLoanScreen() {
               />
             </View>
             <View style={styles.dateColumn}>
-              <Text style={styles.inputLabel}>Due Date *</Text>
+              <Text style={styles.inputLabel}>Due Date (Optional)</Text>
               <DatePicker
                 label=""
                 value={dueDate}
                 onChange={(date) => setDueDate(date)}
                 minDate={startDate}
               />
+              <Text style={styles.helperText}>
+                Leave blank for informal loans between friends/family
+              </Text>
             </View>
           </View>
         </View>

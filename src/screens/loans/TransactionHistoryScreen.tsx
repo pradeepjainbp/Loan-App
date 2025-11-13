@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, StyleSheet, FlatList } from 'react-native';
-import { Text, Card, Divider, useTheme } from 'react-native-paper';
+import { Text, Card, Divider, useTheme, Button, FAB } from 'react-native-paper';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
 import { Transaction, Loan } from '../../types';
@@ -111,66 +111,76 @@ export default function TransactionHistoryScreen({
   );
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Summary Card */}
-      <Card style={styles.summaryCard}>
-        <Card.Content>
-          <Text style={styles.summaryTitle}>Transaction Summary</Text>
-          <Divider style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Current Principal:</Text>
-            <Text style={styles.summaryValue}>
-              {formatCurrency(summary.currentPrincipal, currency)}
-            </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Interest Accrued:</Text>
-            <Text style={styles.summaryValue}>
-              {formatCurrency(summary.totalInterestAccrued, currency)}
-            </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Paid:</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.primary }]}>
-              {formatCurrency(summary.totalPaid, currency)}
-            </Text>
-          </View>
-
-          <Divider style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { fontWeight: 'bold' }]}>Outstanding Balance:</Text>
-            <Text style={[styles.summaryValue, { fontWeight: 'bold', fontSize: 16 }]}>
-              {formatCurrency(summary.outstandingBalance, currency)}
-            </Text>
-          </View>
-        </Card.Content>
-      </Card>
-
-      {/* Transactions List */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
-        Transaction History
-      </Text>
-
-      {loanTransactions.length === 0 ? (
-        <Card style={styles.emptyCard}>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Summary Card */}
+        <Card style={styles.summaryCard}>
           <Card.Content>
-            <Text style={styles.emptyText}>No transactions yet</Text>
+            <Text style={styles.summaryTitle}>Transaction Summary</Text>
+            <Divider style={styles.divider} />
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Current Principal:</Text>
+              <Text style={styles.summaryValue}>
+                {formatCurrency(summary.currentPrincipal, currency)}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Interest Accrued:</Text>
+              <Text style={styles.summaryValue}>
+                {formatCurrency(summary.totalInterestAccrued, currency)}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Paid:</Text>
+              <Text style={[styles.summaryValue, { color: theme.colors.primary }]}>
+                {formatCurrency(summary.totalPaid, currency)}
+              </Text>
+            </View>
+
+            <Divider style={styles.divider} />
+
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { fontWeight: 'bold' }]}>Outstanding Balance:</Text>
+              <Text style={[styles.summaryValue, { fontWeight: 'bold', fontSize: 16 }]}>
+                {formatCurrency(summary.outstandingBalance, currency)}
+              </Text>
+            </View>
           </Card.Content>
         </Card>
-      ) : (
-        <FlatList
-          data={loanTransactions}
-          renderItem={renderTransaction}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
-    </ScrollView>
+
+        {/* Transactions List */}
+        <Text style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
+          Transaction History
+        </Text>
+
+        {loanTransactions.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Card.Content>
+              <Text style={styles.emptyText}>No transactions yet</Text>
+            </Card.Content>
+          </Card>
+        ) : (
+          <FlatList
+            data={loanTransactions}
+            renderItem={renderTransaction}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
+      </ScrollView>
+      
+      {/* Floating Action Button */}
+      <FAB
+        icon="plus"
+        label="Add Transaction"
+        style={styles.fab}
+        onPress={() => navigation.navigate('AddTransaction', { loanId })}
+      />
+    </View>
   );
 }
 
@@ -265,6 +275,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+  },
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
   },
 });
 

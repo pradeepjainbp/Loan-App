@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table (extends Supabase auth.users)
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
   id UUID REFERENCES auth.users(id) PRIMARY KEY,
   full_name TEXT NOT NULL,
   email TEXT,
@@ -25,7 +25,7 @@ CREATE TABLE public.users (
 );
 
 -- Loans table
-CREATE TABLE public.loans (
+CREATE TABLE IF NOT EXISTS public.loans (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   lender_name TEXT NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE public.loans (
 );
 
 -- Repayments table
-CREATE TABLE public.repayments (
+CREATE TABLE IF NOT EXISTS public.repayments (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
   payment_amount DECIMAL(15, 2) NOT NULL CHECK (payment_amount > 0),
@@ -58,7 +58,7 @@ CREATE TABLE public.repayments (
 );
 
 -- Transactions table (for flexible payments and principal adjustments)
-CREATE TABLE public.transactions (
+CREATE TABLE IF NOT EXISTS public.transactions (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
   transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -76,7 +76,7 @@ CREATE TABLE public.transactions (
 );
 
 -- Reminders table
-CREATE TABLE public.reminders (
+CREATE TABLE IF NOT EXISTS public.reminders (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE public.reminders (
 );
 
 -- Attachments table
-CREATE TABLE public.attachments (
+CREATE TABLE IF NOT EXISTS public.attachments (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE NOT NULL,
   file_url TEXT NOT NULL,
@@ -99,17 +99,17 @@ CREATE TABLE public.attachments (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX idx_loans_user_id ON public.loans(user_id);
-CREATE INDEX idx_loans_status ON public.loans(status);
-CREATE INDEX idx_loans_due_date ON public.loans(due_date);
-CREATE INDEX idx_loans_created_at ON public.loans(created_at);
-CREATE INDEX idx_repayments_loan_id ON public.repayments(loan_id);
-CREATE INDEX idx_repayments_payment_date ON public.repayments(payment_date);
-CREATE INDEX idx_reminders_loan_id ON public.reminders(loan_id);
-CREATE INDEX idx_attachments_loan_id ON public.attachments(loan_id);
-CREATE INDEX idx_transactions_loan_id ON public.transactions(loan_id);
-CREATE INDEX idx_transactions_date ON public.transactions(transaction_date);
-CREATE INDEX idx_transactions_type ON public.transactions(transaction_type);
+CREATE INDEX IF NOT EXISTS idx_loans_user_id ON public.loans(user_id);
+CREATE INDEX IF NOT EXISTS idx_loans_status ON public.loans(status);
+CREATE INDEX IF NOT EXISTS idx_loans_due_date ON public.loans(due_date);
+CREATE INDEX IF NOT EXISTS idx_loans_created_at ON public.loans(created_at);
+CREATE INDEX IF NOT EXISTS idx_repayments_loan_id ON public.repayments(loan_id);
+CREATE INDEX IF NOT EXISTS idx_repayments_payment_date ON public.repayments(payment_date);
+CREATE INDEX IF NOT EXISTS idx_reminders_loan_id ON public.reminders(loan_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_loan_id ON public.attachments(loan_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_loan_id ON public.transactions(loan_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON public.transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON public.transactions(transaction_type);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -120,17 +120,26 @@ ALTER TABLE public.attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
-CREATE POLICY "Users can view own profile"
-  ON public.users FOR SELECT
-  USING (auth.uid() = id);
+DO $$ BEGIN
+  CREATE POLICY "Users can view own profile"
+    ON public.users FOR SELECT
+    USING (auth.uid() = id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can update own profile"
-  ON public.users FOR UPDATE
-  USING (auth.uid() = id);
+DO $$ BEGIN
+  CREATE POLICY "Users can update own profile"
+    ON public.users FOR UPDATE
+    USING (auth.uid() = id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can insert own profile"
-  ON public.users FOR INSERT
-  WITH CHECK (auth.uid() = id);
+DO $$ BEGIN
+  CREATE POLICY "Users can insert own profile"
+    ON public.users FOR INSERT
+    WITH CHECK (auth.uid() = id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- RLS Policies for loans table
 CREATE POLICY "Users can view own loans"
