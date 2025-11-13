@@ -410,17 +410,6 @@ export default function LoanDetailScreen() {
         <View style={styles.secondaryActions}>
           <Button
             mode="outlined"
-            onPress={() => navigation.navigate('TransactionHistory', { loanId })}
-            style={styles.secondaryButton}
-            labelStyle={styles.secondaryButtonLabel}
-            textColor={colors.primary}
-            icon="history"
-          >
-            History
-          </Button>
-
-          <Button
-            mode="outlined"
             onPress={handleEdit}
             style={styles.secondaryButton}
             labelStyle={styles.secondaryButtonLabel}

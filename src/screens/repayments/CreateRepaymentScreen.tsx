@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { PaymentMethod } from '../../types';
 import { validateRepaymentData, formatCurrency } from '../../utils/calculations';
 import { sanitizeRepaymentData } from '../../utils/sanitize';
+import { getCurrencySymbol } from '../../utils/currency';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
@@ -162,7 +163,7 @@ export default function CreateRepaymentScreen() {
               keyboardType="decimal-pad"
               style={styles.input}
               placeholder="0.00"
-              left={<TextInput.Icon icon="currency-usd" />}
+              left={<TextInput.Affix text={getCurrencySymbol(currency)} />}
               outlineColor={colors.ui.border}
               activeOutlineColor={colors.primary}
               outlineStyle={{ borderRadius: borderRadius.md }}
