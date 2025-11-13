@@ -101,14 +101,20 @@ export default function CreateLoanScreen() {
       return;
     }
 
-    if (!borrowerName.trim()) {
+    // Validate based on role: if lending, need borrower name; if borrowing, need lender name
+    if (isUserLender && !borrowerName.trim()) {
       showAlert('Validation Error', 'Please enter borrower name');
+      return;
+    }
+
+    if (!isUserLender && !lenderName.trim()) {
+      showAlert('Validation Error', 'Please enter lender name');
       return;
     }
 
     const rawLoanData = {
       lender_name: isUserLender ? (appUser?.full_name || lenderName) : lenderName,
-      borrower_name: borrowerName,
+      borrower_name: isUserLender ? borrowerName : (appUser?.full_name || borrowerName),
       principal_amount: parseFloat(principalAmount),
       start_date: startDate.toISOString(),
       due_date: dueDate ? dueDate.toISOString() : null, // Made optional
@@ -210,6 +216,7 @@ export default function CreateLoanScreen() {
               outlineColor={colors.ui.border}
               activeOutlineColor={colors.primary}
               outlineStyle={{ borderRadius: borderRadius.md }}
+              textColor={colors.text.primary}
             />
           </View>
 
@@ -226,6 +233,7 @@ export default function CreateLoanScreen() {
               outlineColor={colors.ui.border}
               activeOutlineColor={colors.primary}
               outlineStyle={{ borderRadius: borderRadius.md }}
+              textColor={colors.text.primary}
             />
           </View>
 
@@ -283,6 +291,7 @@ export default function CreateLoanScreen() {
                   outlineColor={colors.ui.border}
                   activeOutlineColor={colors.primary}
                   outlineStyle={{ borderRadius: borderRadius.md }}
+                  textColor={colors.text.primary}
                 />
               </View>
 
@@ -352,6 +361,7 @@ export default function CreateLoanScreen() {
               outlineColor={colors.ui.border}
               activeOutlineColor={colors.primary}
               outlineStyle={{ borderRadius: borderRadius.md }}
+              textColor={colors.text.primary}
             />
             <Text style={styles.charCount}>{notes.length}/500</Text>
           </View>
@@ -368,6 +378,7 @@ export default function CreateLoanScreen() {
                 outlineColor={colors.ui.border}
                 activeOutlineColor={colors.primary}
                 outlineStyle={{ borderRadius: borderRadius.md }}
+                textColor={colors.text.primary}
               />
               <Button 
                 mode="contained" 
