@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { Text, TextInput, Button, SegmentedButtons, Chip, Card } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,6 +12,24 @@ import { getCurrencySymbol } from '../../utils/currency';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import DatePicker from '../../components/DatePicker';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
+
+// Web-compatible alert helper
+const showAlert = (title: string, message: string, buttons?: Array<{text: string, onPress?: () => void, style?: 'default' | 'cancel' | 'destructive'}>) => {
+  if (Platform.OS === 'web') {
+    if (buttons && buttons.length > 1) {
+      const confirmed = window.confirm(`${title}\n\n${message}`);
+      if (confirmed && buttons[1].onPress) {
+        buttons[1].onPress();
+      } else if (!confirmed && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    } else {
+      window.alert(`${title}\n\n${message}`);
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -79,12 +97,12 @@ export default function CreateLoanScreen() {
 
   const handleSubmit = async () => {
     if (!principalAmount || parseFloat(principalAmount) <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid principal amount');
+      showAlert('Validation Error', 'Please enter a valid principal amount');
       return;
     }
 
     if (!borrowerName.trim()) {
-      Alert.alert('Validation Error', 'Please enter borrower name');
+      showAlert('Validation Error', 'Please enter borrower name');
       return;
     }
 
@@ -107,12 +125,12 @@ export default function CreateLoanScreen() {
     const errors = validateLoanData(loanData);
 
     if (errors.length > 0) {
-      Alert.alert('Validation Error', errors.join('\n'));
+      showAlert('Validation Error', errors.join('\n'));
       return;
     }
 
     if (loanData.principal_amount > 100000) {
-      Alert.alert(
+      showAlert(
         'Large Amount Warning',
         `You're creating a loan for ${loanData.principal_amount.toLocaleString()}. Is this correct?`,
         [
@@ -131,12 +149,12 @@ export default function CreateLoanScreen() {
       setLoading(true);
       console.log('Creating loan with data:', loanData);
       await createLoan(loanData);
-      Alert.alert('Success', 'Loan created successfully');
+      showAlert('Success', 'Loan created successfully');
       navigation.goBack();
     } catch (error: any) {
       console.error('Loan creation error:', error);
       const errorMessage = error?.message || error?.details || 'Failed to create loan';
-      Alert.alert('Error', errorMessage);
+      showAlert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
