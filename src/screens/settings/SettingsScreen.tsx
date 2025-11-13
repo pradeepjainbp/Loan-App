@@ -1,11 +1,31 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
 import { Text, Card, Button, Divider, Modal, Portal, RadioButton } from 'react-native-paper';
 import { useAuthStore } from '../../store/authStore';
 import { useLoanStore } from '../../store/loanStore';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
 import { Currency, DateFormat } from '../../types';
 import { exportToCSV, exportToJSON, getBackupStatus } from '../../utils/exportData';
+
+// Web-compatible alert helper
+const showAlert = (title: string, message: string, buttons?: Array<{text: string, onPress?: () => void, style?: 'default' | 'cancel' | 'destructive'}>) => {
+  if (Platform.OS === 'web') {
+    if (buttons && buttons.length > 1) {
+      const confirmed = window.confirm(`${title}\n\n${message}`);
+      if (confirmed) {
+        const actionButton = buttons.find(b => b.style !== 'cancel');
+        if (actionButton?.onPress) actionButton.onPress();
+      } else {
+        const cancelButton = buttons.find(b => b.style === 'cancel');
+        if (cancelButton?.onPress) cancelButton.onPress();
+      }
+    } else {
+      window.alert(`${title}\n\n${message}`);
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 export default function SettingsScreen() {
   const { appUser, signOut, updateUserSettings } = useAuthStore();
@@ -18,9 +38,9 @@ export default function SettingsScreen() {
     try {
       await updateUserSettings({ currency });
       setCurrencyModalVisible(false);
-      Alert.alert('Success', 'Currency updated successfully');
+      showAlert('Success', 'Currency updated successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update currency');
+      showAlert('Error', error.message || 'Failed to update currency');
     }
   };
 
@@ -28,9 +48,9 @@ export default function SettingsScreen() {
     try {
       await updateUserSettings({ date_format: dateFormat });
       setDateFormatModalVisible(false);
-      Alert.alert('Success', 'Date format updated successfully');
+      showAlert('Success', 'Date format updated successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update date format');
+      showAlert('Error', error.message || 'Failed to update date format');
     }
   };
 
@@ -40,7 +60,7 @@ export default function SettingsScreen() {
       await updateUserSettings({ notifications_enabled: enabled });
     } catch (error: any) {
       setNotificationsEnabled(!enabled);
-      Alert.alert('Error', error.message || 'Failed to update notifications');
+      showAlert('Error', error.message || 'Failed to update notifications');
     }
   };
 
@@ -70,60 +90,113 @@ export default function SettingsScreen() {
   };
 
   const handleExportData = () => {
-    Alert.alert(
-      'Export Data',
-      'Choose export format:',
-      [
-        {
-          text: 'CSV',
-          onPress: async () => {
-            try {
-              const allRepayments = Object.values(repayments).flat();
-              await exportToCSV(loans, allRepayments);
-              Alert.alert('Success', 'Data exported successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to export data');
-            }
+    if (Platform.OS === 'web') {
+      // On web, ask for format choice via prompt
+      const format = window.prompt('Choose export format:\n1. CSV\n2. JSON\n\nEnter 1 or 2:');
+      
+      if (format === '1' || format?.toLowerCase() === 'csv') {
+        exportDataAsCSV();
+      } else if (format === '2' || format?.toLowerCase() === 'json') {
+        exportDataAsJSON();
+      }
+    } else {
+      showAlert(
+        'Export Data',
+        'Choose export format:',
+        [
+          {
+            text: 'CSV',
+            onPress: exportDataAsCSV,
           },
-        },
-        {
-          text: 'JSON',
-          onPress: async () => {
-            try {
-              const allRepayments = Object.values(repayments).flat();
-              await exportToJSON(loans, allRepayments);
-              Alert.alert('Success', 'Data exported successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to export data');
-            }
+          {
+            text: 'JSON',
+            onPress: exportDataAsJSON,
           },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  const exportDataAsCSV = async () => {
+    try {
+      const allRepayments = Object.values(repayments).flat();
+      await exportToCSV(loans, allRepayments);
+      showAlert('Success', 'Data exported successfully as CSV');
+    } catch (error: any) {
+      showAlert('Error', error.message || 'Failed to export data');
+    }
+  };
+
+  const exportDataAsJSON = async () => {
+    try {
+      const allRepayments = Object.values(repayments).flat();
+      await exportToJSON(loans, allRepayments);
+      showAlert('Success', 'Data exported successfully as JSON');
+    } catch (error: any) {
+      showAlert('Error', error.message || 'Failed to export data');
+    }
   };
 
   const handleBackupStatus = () => {
     const backup = getBackupStatus();
-    Alert.alert(
+    showAlert(
       'Backup Status',
       `Status: ${backup.status}\n\nLast Backup: ${backup.lastBackup}\n\nNext Backup: ${backup.nextBackup}\n\n${backup.message}`
     );
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    showAlert(
       'Delete Account',
-      'This will permanently delete your account and all associated data. This action cannot be undone.',
+      'This will permanently delete your account and all associated data. This action cannot be undone.\n\nAre you sure you want to continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete Account',
           style: 'destructive',
-          onPress: () => Alert.alert('Coming Soon', 'Account deletion feature will be available soon.')
+          onPress: confirmDeleteAccount
         },
       ]
     );
+  };
+
+  const confirmDeleteAccount = async () => {
+    try {
+      // Delete all user data from Supabase
+      const { supabase } = await import('../../config/supabase');
+      
+      if (!appUser?.id) {
+        throw new Error('User not found');
+      }
+
+      // Delete all loans and repayments (cascade will handle related data)
+      const { error: loansError } = await supabase
+        .from('loans')
+        .delete()
+        .eq('user_id', appUser.id);
+
+      if (loansError) throw loansError;
+
+      // Delete user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', appUser.id);
+
+      if (profileError) throw profileError;
+
+      // Delete auth user
+      const { error: authError } = await supabase.auth.admin.deleteUser(appUser.id);
+      
+      // Even if admin delete fails (requires service role), sign out the user
+      await signOut();
+      
+      showAlert('Account Deleted', 'Your account and all data have been permanently deleted.');
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      showAlert('Error', error.message || 'Failed to delete account. Please contact support.');
+    }
   };
 
   const SettingItem = ({ 
