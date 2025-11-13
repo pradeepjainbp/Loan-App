@@ -21,6 +21,7 @@ interface LoanState {
   updateLoan: (id: string, updates: Partial<Loan>) => Promise<void>;
   deleteLoan: (id: string) => Promise<void>;
   createRepayment: (repayment: Omit<Repayment, 'id' | 'created_at'>) => Promise<void>;
+  updateRepayment: (id: string, updates: Partial<Repayment>) => Promise<void>;
   createTransaction: (transaction: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   calculateDashboardMetrics: () => void;
   getLoanCalculation: (loanId: string) => LoanCalculation | null;
@@ -272,6 +273,64 @@ export const useLoanStore = create<LoanState>((set, get) => ({
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error creating repayment:', error);
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  updateRepayment: async (id: string, updates: Partial<Repayment>) => {
+    try {
+      set({ loading: true });
+      console.log('📝 [LoanStore] Updating repayment:', id, updates);
+
+      // Find the loan_id from existing repayments
+      let loanId: string | null = null;
+      const repayments = get().repayments;
+      for (const [loan_id, reps] of Object.entries(repayments)) {
+        if (reps.find(r => r.id === id)) {
+          loanId = loan_id;
+          break;
+        }
+      }
+
+      if (!loanId) {
+        throw new Error('Repayment not found in local store');
+      }
+
+      // Update in database
+      const { error } = await supabase
+        .from('repayments')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Update local repayments
+      set((state) => ({
+        repayments: {
+          ...state.repayments,
+          [loanId]: (state.repayments[loanId] || []).map(rep =>
+            rep.id === id ? { ...rep, ...updates } : rep
+          ),
+        },
+      }));
+
+      // Recalculate loan status
+      const loan = get().loans.find((l) => l.id === loanId);
+      if (loan) {
+        const allRepayments = get().repayments[loanId] || [];
+        const calculation = calculateLoanDetails(loan, allRepayments);
+        const newStatus = determineLoanStatus(loan, calculation.current_outstanding);
+
+        if (newStatus !== loan.status) {
+          await get().updateLoan(loan.id, { status: newStatus });
+        }
+      }
+
+      get().calculateDashboardMetrics();
+    } catch (error) {
+      console.error('Error updating repayment:', error);
       throw error;
     } finally {
       set({ loading: false });

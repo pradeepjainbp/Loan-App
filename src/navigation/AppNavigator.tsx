@@ -23,6 +23,7 @@ export type RootStackParamList = {
   CreateLoan: undefined;
   EditLoan: { loanId: string };
   CreateRepayment: { loanId: string };
+  EditRepayment: { loanId: string; repaymentId: string };
   TransactionHistory: { loanId: string };
   AddTransaction: { loanId: string };
 };
@@ -119,6 +120,11 @@ export default function AppNavigator() {
               name="CreateRepayment"
               component={CreateRepaymentScreen}
               options={{ title: 'Record Repayment' }}
+            />
+            <Stack.Screen
+              name="EditRepayment"
+              component={CreateRepaymentScreen}
+              options={{ title: 'Edit Repayment' }}
             />
             <Stack.Screen
               name="TransactionHistory"

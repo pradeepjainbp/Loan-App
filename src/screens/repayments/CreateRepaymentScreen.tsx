@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { Text, TextInput, Button, SegmentedButtons, Card } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,14 +14,39 @@ import DatePicker from '../../components/DatePicker';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
 
 type CreateRepaymentRouteProp = RouteProp<RootStackParamList, 'CreateRepayment'>;
+type EditRepaymentRouteProp = RouteProp<RootStackParamList, 'EditRepayment'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+// Web-compatible alert helper
+const showAlert = (title: string, message: string, onConfirm?: () => void) => {
+  if (Platform.OS === 'web') {
+    if (onConfirm) {
+      if (window.confirm(`${title}\n\n${message}`)) {
+        onConfirm();
+      }
+    } else {
+      window.alert(`${title}\n\n${message}`);
+    }
+  } else {
+    if (onConfirm) {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: onConfirm },
+      ]);
+    } else {
+      Alert.alert(title, message);
+    }
+  }
+};
+
 export default function CreateRepaymentScreen() {
-  const route = useRoute<CreateRepaymentRouteProp>();
+  const route = useRoute<CreateRepaymentRouteProp | EditRepaymentRouteProp>();
   const navigation = useNavigation<NavigationProp>();
   const { loanId } = route.params;
+  const repaymentId = 'repaymentId' in route.params ? route.params.repaymentId : undefined;
+  const isEditMode = !!repaymentId;
   
-  const { loans, createRepayment, getLoanCalculation } = useLoanStore();
+  const { loans, repayments, createRepayment, updateRepayment, getLoanCalculation } = useLoanStore();
   const { appUser } = useAuthStore();
   const loan = loans.find((l) => l.id === loanId);
   const calculation = loan ? getLoanCalculation(loanId) : null;
@@ -33,6 +58,22 @@ export default function CreateRepaymentScreen() {
   const [transactionReference, setTransactionReference] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Load existing repayment data in edit mode
+  useEffect(() => {
+    if (isEditMode && repaymentId) {
+      const loanRepayments = repayments[loanId] || [];
+      const existingRepayment = loanRepayments.find(r => r.id === repaymentId);
+      
+      if (existingRepayment) {
+        setPaymentAmount(existingRepayment.payment_amount.toString());
+        setPaymentDate(new Date(existingRepayment.payment_date));
+        setPaymentMethod(existingRepayment.payment_method);
+        setTransactionReference(existingRepayment.transaction_reference || '');
+        setNotes(existingRepayment.notes || '');
+      }
+    }
+  }, [isEditMode, repaymentId, loanId, repayments]);
 
   if (!loan || !calculation) {
     return (
@@ -60,18 +101,15 @@ export default function CreateRepaymentScreen() {
     const errors = validateRepaymentData(repaymentData, loan, calculation.current_outstanding);
     
     if (errors.length > 0) {
-      Alert.alert('Validation Error', errors.join('\n'));
+      showAlert('Validation Error', errors.join('\n'));
       return;
     }
 
-    if (repaymentData.payment_amount > calculation.current_outstanding) {
-      Alert.alert(
+    if (!isEditMode && repaymentData.payment_amount > calculation.current_outstanding) {
+      showAlert(
         'Warning',
         `Payment amount (${formatCurrency(repaymentData.payment_amount, currency)}) exceeds outstanding balance (${formatCurrency(calculation.current_outstanding, currency)}). Continue?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => submitRepayment(repaymentData) },
-        ]
+        () => submitRepayment(repaymentData)
       );
       return;
     }
@@ -82,11 +120,18 @@ export default function CreateRepaymentScreen() {
   const submitRepayment = async (repaymentData: any) => {
     try {
       setLoading(true);
-      await createRepayment(repaymentData);
-      Alert.alert('Success', 'Repayment recorded successfully');
+      
+      if (isEditMode && repaymentId) {
+        await updateRepayment(repaymentId, repaymentData);
+        showAlert('Success', 'Repayment updated successfully');
+      } else {
+        await createRepayment(repaymentData);
+        showAlert('Success', 'Repayment recorded successfully');
+      }
+      
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to record repayment');
+      showAlert('Error', error.message || `Failed to ${isEditMode ? 'update' : 'record'} repayment`);
     } finally {
       setLoading(false);
     }
@@ -261,7 +306,7 @@ export default function CreateRepaymentScreen() {
           labelStyle={styles.submitButtonLabel}
           icon="check-circle"
         >
-          Record Payment
+          {isEditMode ? 'Update Payment' : 'Record Payment'}
         </Button>
 
         {/* Help Text */}

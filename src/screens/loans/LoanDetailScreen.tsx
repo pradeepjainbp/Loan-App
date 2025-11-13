@@ -359,32 +359,37 @@ export default function LoanDetailScreen() {
                   previousPaymentDate = repayment.payment_date;
                   
                   return (
-                    <View 
-                      key={repayment.id} 
-                      style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+                    <TouchableOpacity 
+                      key={repayment.id}
+                      onPress={() => navigation.navigate('EditRepayment', { loanId, repaymentId: repayment.id })}
+                      activeOpacity={0.7}
                     >
-                      <Text style={[styles.tableCell, styles.dateColumn]}>
-                        {formatDate(repayment.payment_date, dateFormat)}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.particularsColumn]}>
-                        {repayment.notes || `via ${repayment.payment_method.replace('_', ' ')}`}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.amountColumn]}>
-                        {formatCurrency(Math.abs(interestForThisPeriod), currency)}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.amountColumn, { color: colors.semantic.success.main }]}>
-                        {formatCurrency(repayment.payment_amount, currency)}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.amountColumn, { fontWeight: '600' }]}>
-                        {formatCurrency(Math.max(0, runningBalance), currency)}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.amountColumn, { fontSize: 11 }]}>
-                        {runningBalance > 0 
-                          ? formatCurrency(dailyInterest, currency)
-                          : '-'
-                        }
-                      </Text>
-                    </View>
+                      <View 
+                        style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+                      >
+                        <Text style={[styles.tableCell, styles.dateColumn]}>
+                          {formatDate(repayment.payment_date, dateFormat)}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.particularsColumn]}>
+                          {repayment.notes || `via ${repayment.payment_method.replace('_', ' ')}`}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.amountColumn]}>
+                          {formatCurrency(Math.abs(interestForThisPeriod), currency)}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.amountColumn, { color: colors.semantic.success.main }]}>
+                          {formatCurrency(repayment.payment_amount, currency)}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.amountColumn, { fontWeight: '600' }]}>
+                          {formatCurrency(Math.max(0, runningBalance), currency)}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.amountColumn, { fontSize: 11 }]}>
+                          {runningBalance > 0 
+                            ? formatCurrency(dailyInterest, currency)
+                            : '-'
+                          }
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
                   );
                 });
               })()}
