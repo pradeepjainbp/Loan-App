@@ -159,7 +159,7 @@ export default function DashboardScreen() {
                           {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
                         </Text>
                         <Text style={styles.loanDate}>
-                          Due {formatDate(loan.due_date, dateFormat)}
+                          {loan.due_date ? `Due ${formatDate(loan.due_date, dateFormat)}` : 'No due date'}
                         </Text>
                       </View>
                     </View>
@@ -169,18 +169,6 @@ export default function DashboardScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
-              
-              {dashboardMetrics.overdue_loans.length > 3 && (
-                <Button
-                  mode="text"
-                  onPress={() => navigation.navigate('MainTabs', { screen: 'Loans' })}
-                  style={styles.viewAllButton}
-                  labelStyle={styles.viewAllButtonLabel}
-                  textColor={colors.semantic.error.main}
-                >
-                  View all {dashboardMetrics.overdue_loans.length} →
-                </Button>
-              )}
             </Card.Content>
           </Card>
         </View>
@@ -220,7 +208,7 @@ export default function DashboardScreen() {
                           {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
                         </Text>
                         <Text style={styles.loanDate}>
-                          Due {formatDate(loan.due_date, dateFormat)}
+                          {loan.due_date ? `Due ${formatDate(loan.due_date, dateFormat)}` : 'No due date'}
                         </Text>
                       </View>
                     </View>
@@ -269,7 +257,7 @@ export default function DashboardScreen() {
                           {loan.is_user_lender ? loan.borrower_name : loan.lender_name}
                         </Text>
                         <Text style={styles.loanDate}>
-                          Due {formatDate(loan.due_date, dateFormat)}
+                          {loan.due_date ? `Due ${formatDate(loan.due_date, dateFormat)}` : 'No due date'}
                         </Text>
                       </View>
                     </View>

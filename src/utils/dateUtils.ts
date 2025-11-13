@@ -22,14 +22,16 @@ export function formatDate(date: string | Date, dateFormat: DateFormat = 'MM/DD/
 /**
  * Get days until due date
  */
-export function getDaysUntilDue(dueDate: string): number {
+export function getDaysUntilDue(dueDate: string | null): number {
+  if (!dueDate) return Infinity; // No due date means never due
   return differenceInDays(parseISO(dueDate), new Date());
 }
 
 /**
  * Check if loan is due within specified days
  */
-export function isDueWithinDays(dueDate: string, days: number): boolean {
+export function isDueWithinDays(dueDate: string | null, days: number): boolean {
+  if (!dueDate) return false; // No due date means not due soon
   const daysUntil = getDaysUntilDue(dueDate);
   return daysUntil >= 0 && daysUntil <= days;
 }
@@ -37,7 +39,8 @@ export function isDueWithinDays(dueDate: string, days: number): boolean {
 /**
  * Check if loan is overdue
  */
-export function isOverdue(dueDate: string): boolean {
+export function isOverdue(dueDate: string | null): boolean {
+  if (!dueDate) return false; // No due date means not overdue
   return getDaysUntilDue(dueDate) < 0;
 }
 
