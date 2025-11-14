@@ -33,6 +33,8 @@ export default function SettingsScreen() {
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [dateFormatModalVisible, setDateFormatModalVisible] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(appUser?.settings?.notifications_enabled ?? true);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleCurrencyChange = async (currency: Currency) => {
     try {
@@ -114,21 +116,27 @@ export default function SettingsScreen() {
 
   const exportDataAsCSV = async () => {
     try {
+      setExporting(true);
       const allRepayments = Object.values(repayments).flat();
       await exportToCSV(loans, allRepayments);
       showAlert('Success', 'Data exported successfully as CSV');
     } catch (error: any) {
       showAlert('Error', error.message || 'Failed to export data');
+    } finally {
+      setExporting(false);
     }
   };
 
   const exportDataAsJSON = async () => {
     try {
+      setExporting(true);
       const allRepayments = Object.values(repayments).flat();
       await exportToJSON(loans, allRepayments);
       showAlert('Success', 'Data exported successfully as JSON');
     } catch (error: any) {
       showAlert('Error', error.message || 'Failed to export data');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -157,6 +165,7 @@ export default function SettingsScreen() {
 
   const confirmDeleteAccount = async () => {
     try {
+      setDeleting(true);
       // Delete all user data from Supabase
       const { supabase } = await import('../../config/supabase');
       
@@ -189,6 +198,8 @@ export default function SettingsScreen() {
       showAlert('Account Deleted', 'Your account and all data have been permanently deleted.');
     } catch (error: any) {
       showAlert('Error', error.message || 'Failed to delete account. Please contact support.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -292,6 +303,8 @@ export default function SettingsScreen() {
                 labelStyle={styles.actionButtonLabel}
                 textColor={colors.text.primary}
                 icon="download"
+                loading={exporting}
+                disabled={exporting}
               >
                 Export All Data
               </Button>
@@ -333,6 +346,8 @@ export default function SettingsScreen() {
                 labelStyle={styles.deleteButtonLabel}
                 textColor={colors.semantic.error.main}
                 icon="delete-forever"
+                loading={deleting}
+                disabled={deleting}
               >
                 Delete Account
               </Button>

@@ -108,13 +108,13 @@ export default function CreateRepaymentScreen() {
     if (!isEditMode && repaymentData.payment_amount > calculation.current_outstanding) {
       showAlert(
         'Warning',
-        `Payment amount (${formatCurrency(repaymentData.payment_amount, currency)}) exceeds outstanding balance (${formatCurrency(calculation.current_outstanding, currency)}). Continue?`,
+        `Payment amount (${formatCurrency(repaymentData.payment_amount, currency)}) exceeds outstanding balance (${formatCurrency(calculation.current_outstanding, currency)}). Continue anyway?`,
         () => submitRepayment(repaymentData)
       );
       return;
     }
 
-    await submitRepayment(repaymentData);
+    submitRepayment(repaymentData);
   };
 
   const submitRepayment = async (repaymentData: any) => {

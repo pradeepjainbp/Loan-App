@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, FlatList } from 'react-native';
-import { Text, Card, Divider, useTheme, Button, FAB } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { Text, Card, Divider, useTheme, Button, FAB, Snackbar } from 'react-native-paper';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
 import { Transaction, Loan } from '../../types';
@@ -23,6 +23,7 @@ export default function TransactionHistoryScreen({
   const { transactions, fetchTransactions } = useLoanStore();
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loan = loans.find((l) => l.id === loanId);
   const loanTransactions = transactions[loanId] || [];
@@ -34,9 +35,21 @@ export default function TransactionHistoryScreen({
   const loadTransactions = async () => {
     try {
       setLoading(true);
+      setError(null);
       await fetchTransactions(loanId);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load transactions');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setError(null);
+      await fetchTransactions(loanId);
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh transactions');
     }
   };
 
@@ -112,7 +125,12 @@ export default function TransactionHistoryScreen({
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScrollView 
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
+        }
+      >
         {/* Summary Card */}
         <Card style={styles.summaryCard}>
           <Card.Content>
@@ -180,6 +198,20 @@ export default function TransactionHistoryScreen({
         style={styles.fab}
         onPress={() => navigation.navigate('AddTransaction', { loanId })}
       />
+
+      {/* Error Snackbar */}
+      <Snackbar
+        visible={!!error}
+        onDismiss={() => setError(null)}
+        duration={4000}
+        action={{
+          label: 'Dismiss',
+          onPress: () => setError(null),
+        }}
+        style={{ backgroundColor: '#D32F2F' }}
+      >
+        {error}
+      </Snackbar>
     </View>
   );
 }

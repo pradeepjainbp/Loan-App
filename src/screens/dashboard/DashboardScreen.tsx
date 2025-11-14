@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
-import { Text, Card, Button } from 'react-native-paper';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Platform } from 'react-native';
+import { Text, Card, Button, Snackbar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
@@ -14,17 +14,30 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DashboardScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { dashboardMetrics, fetchLoans, loading, subscribeToLoans, getLoanCalculation } = useLoanStore();
+  const { dashboardMetrics, fetchLoans, loading, subscribeToLoans, getLoanCalculation, getRecentActivity } = useLoanStore();
   const { appUser } = useAuthStore();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLoans();
+    const loadData = async () => {
+      try {
+        await fetchLoans();
+      } catch (err: any) {
+        setError(err.message || 'Failed to load data');
+      }
+    };
+    loadData();
     const unsubscribe = subscribeToLoans();
     return unsubscribe;
   }, []);
 
-  const handleRefresh = () => {
-    fetchLoans();
+  const handleRefresh = async () => {
+    try {
+      setError(null);
+      await fetchLoans();
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh data');
+    }
   };
 
   const currency = appUser?.settings?.currency || 'USD';
@@ -34,9 +47,24 @@ export default function DashboardScreen() {
   const netBalance = (dashboardMetrics?.total_lent || 0) - (dashboardMetrics?.total_borrowed || 0);
   const isNetPositive = netBalance >= 0;
 
+  // Priority loan - first overdue, else first due soon
+  const priorityLoan = React.useMemo(() => {
+    if (dashboardMetrics?.overdue_loans && dashboardMetrics.overdue_loans.length > 0) {
+      return dashboardMetrics.overdue_loans[0];
+    }
+    if (dashboardMetrics?.loans_due_30_days && dashboardMetrics.loans_due_30_days.length > 0) {
+      return dashboardMetrics.loans_due_30_days[0];
+    }
+    return null;
+  }, [dashboardMetrics]);
+
+  // Recent activity for the activity strip
+  const recentActivity = getRecentActivity();
+
   return (
+    <View style={styles.container}>
     <ScrollView
-      style={styles.container}
+      style={styles.scrollView}
       contentContainerStyle={styles.contentContainer}
       refreshControl={
         <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
@@ -54,6 +82,86 @@ export default function DashboardScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Priority Loan - What Needs Attention */}
+      {priorityLoan && (() => {
+        const calculation = getLoanCalculation(priorityLoan.id);
+        const outstandingAmount = calculation?.current_outstanding || priorityLoan.principal_amount;
+        const isOverdue = dashboardMetrics?.overdue_loans?.some(l => l.id === priorityLoan.id);
+        const personName = priorityLoan.is_user_lender ? priorityLoan.borrower_name : priorityLoan.lender_name;
+        
+        return (
+          <Card style={[styles.priorityCard, isOverdue ? styles.priorityCardOverdue : styles.priorityCardDueSoon]}>
+            <Card.Content style={styles.priorityContent}>
+              <View style={styles.priorityHeader}>
+                <View style={styles.priorityBadge}>
+                  <Text style={styles.priorityBadgeIcon}>{isOverdue ? '⚠️' : '⏰'}</Text>
+                  <Text style={styles.priorityBadgeText}>
+                    {isOverdue ? 'OVERDUE' : 'DUE SOON'}
+                  </Text>
+                </View>
+              </View>
+              
+              <Text style={styles.priorityTitle}>What needs attention</Text>
+              
+              <View style={styles.priorityDetails}>
+                <View style={styles.priorityPersonRow}>
+                  <View style={styles.priorityAvatar}>
+                    <Text style={styles.priorityAvatarText}>{personName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.priorityInfo}>
+                    <Text style={styles.priorityPersonName}>{personName}</Text>
+                    <Text style={styles.priorityRole}>
+                      {priorityLoan.is_user_lender ? 'You lent' : 'You borrowed'}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.priorityAmountRow}>
+                  <Text style={styles.priorityAmountLabel}>Outstanding</Text>
+                  <Text style={[styles.priorityAmount, { color: isOverdue ? colors.semantic.error.main : colors.semantic.warning.main }]}>
+                    {formatCurrency(outstandingAmount, currency)}
+                  </Text>
+                </View>
+                
+                {priorityLoan.due_date && (
+                  <View style={styles.priorityDueDateRow}>
+                    <Text style={styles.priorityDueDateLabel}>
+                      {isOverdue ? 'Was due on' : 'Due on'}
+                    </Text>
+                    <Text style={styles.priorityDueDateValue}>
+                      {formatDate(priorityLoan.due_date, dateFormat)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.priorityActions}>
+                <Button
+                  mode="contained"
+                  onPress={() => navigation.navigate('LoanDetail', { loanId: priorityLoan.id })}
+                  style={styles.priorityButton}
+                  buttonColor={colors.primary}
+                  labelStyle={styles.priorityButtonLabel}
+                  contentStyle={styles.priorityButtonContent}
+                >
+                  See Details
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => navigation.navigate('CreateRepayment', { loanId: priorityLoan.id })}
+                  style={styles.priorityButtonSecondary}
+                  textColor={colors.primary}
+                  labelStyle={styles.priorityButtonLabel}
+                  contentStyle={styles.priorityButtonContent}
+                >
+                  Record Repayment
+                </Button>
+              </View>
+            </Card.Content>
+          </Card>
+        );
+      })()}
 
       {/* Summary Cards */}
       <View style={styles.summaryGrid}>
@@ -109,6 +217,52 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {/* Recent Activity Strip */}
+      {recentActivity.length > 0 && (
+        <View style={styles.activitySection}>
+          <Text style={styles.activityTitle}>Recent Activity</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.activityScrollContent}
+          >
+            {recentActivity.map(({ loan, lastRepayment }) => {
+              const personName = loan.is_user_lender ? loan.borrower_name : loan.lender_name;
+              const activityDate = lastRepayment ? lastRepayment.payment_date : loan.created_at;
+              const formattedDate = new Date(activityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              
+              if (lastRepayment) {
+                return (
+                  <TouchableOpacity
+                    key={loan.id}
+                    style={styles.activityChip}
+                    onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.activityChipText}>
+                      💰 {personName} {loan.is_user_lender ? 'repaid' : 'received'} {formatCurrency(lastRepayment.payment_amount, currency)} on {formattedDate}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              } else {
+                return (
+                  <TouchableOpacity
+                    key={loan.id}
+                    style={styles.activityChip}
+                    onPress={() => navigation.navigate('LoanDetail', { loanId: loan.id })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.activityChipText}>
+                      ✨ New loan with {personName} • {formatCurrency(loan.principal_amount, currency)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Quick Action */}
       <View style={styles.actionSection}>
         <Button
@@ -140,6 +294,9 @@ export default function DashboardScreen() {
               {dashboardMetrics.overdue_loans.slice(0, 3).map((loan, index) => {
                 const calculation = getLoanCalculation(loan.id);
                 const outstandingAmount = calculation?.current_outstanding || loan.principal_amount;
+                const progressPercentage = calculation 
+                  ? Math.min((calculation.total_repaid / calculation.total_amount_due) * 100, 100)
+                  : 0;
                 
                 return (
                 <TouchableOpacity
@@ -165,6 +322,19 @@ export default function DashboardScreen() {
                         <Text style={styles.loanDate}>
                           {loan.due_date ? `Due ${formatDate(loan.due_date, dateFormat)}` : 'No due date'}
                         </Text>
+                        {calculation && (
+                          <View style={styles.miniProgressBar}>
+                            <View 
+                              style={[
+                                styles.miniProgressFill, 
+                                { 
+                                  width: `${progressPercentage}%`,
+                                  backgroundColor: colors.semantic.error.main
+                                }
+                              ]} 
+                            />
+                          </View>
+                        )}
                       </View>
                     </View>
                     <Text style={[styles.loanAmount, { color: colors.semantic.error.main }]}>
@@ -193,6 +363,7 @@ export default function DashboardScreen() {
               {dashboardMetrics.loans_due_7_days.slice(0, 3).map((loan, index) => {
                 const calculation = getLoanCalculation(loan.id);
                 const outstandingAmount = calculation?.current_outstanding || loan.principal_amount;
+                const progressPercentage = calculation ? Math.min((calculation.total_repaid / calculation.total_amount_due) * 100, 100) : 0;
                 
                 return (
                 <TouchableOpacity
@@ -218,10 +389,13 @@ export default function DashboardScreen() {
                         <Text style={styles.loanDate}>
                           {loan.due_date ? `Due ${formatDate(loan.due_date, dateFormat)}` : 'No due date'}
                         </Text>
+                        <View style={styles.miniProgressBar}>
+                          <View style={[styles.miniProgressFill, { width: `${progressPercentage}%`, backgroundColor: progressPercentage === 100 ? colors.semantic.success.main : colors.semantic.warning.main }]} />
+                        </View>
                       </View>
                     </View>
                     <Text style={[styles.loanAmount, { color: colors.semantic.info.main }]}>
-                      {formatCurrency(outstandingAmount, currency)}
+                      {formatCurrency(calculation?.current_outstanding || loan.principal_amount, currency)}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -243,7 +417,11 @@ export default function DashboardScreen() {
 
           <Card style={[styles.alertCard, styles.upcomingCard]}>
             <Card.Content style={styles.alertCardContent}>
-              {dashboardMetrics.loans_due_30_days.slice(0, 3).map((loan, index) => (
+              {dashboardMetrics.loans_due_30_days.slice(0, 3).map((loan, index) => {
+                const calculation = getLoanCalculation(loan.id);
+                const progressPercentage = calculation ? Math.min((calculation.total_repaid / calculation.total_amount_due) * 100, 100) : 0;
+                
+                return (
                 <TouchableOpacity
                   key={loan.id}
                   style={[
@@ -267,14 +445,17 @@ export default function DashboardScreen() {
                         <Text style={styles.loanDate}>
                           {loan.due_date ? `Due ${formatDate(loan.due_date, dateFormat)}` : 'No due date'}
                         </Text>
+                        <View style={styles.miniProgressBar}>
+                          <View style={[styles.miniProgressFill, { width: `${progressPercentage}%`, backgroundColor: progressPercentage === 100 ? colors.semantic.success.main : colors.semantic.info.main }]} />
+                        </View>
                       </View>
                     </View>
                     <Text style={[styles.loanAmount, { color: colors.semantic.info.main }]}>
-                      {formatCurrency(loan.principal_amount, currency)}
+                      {formatCurrency(calculation?.current_outstanding || loan.principal_amount, currency)}
                     </Text>
                   </View>
                 </TouchableOpacity>
-              ))}
+              );})}
             </Card.Content>
           </Card>
         </View>
@@ -297,6 +478,21 @@ export default function DashboardScreen() {
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
+
+    {/* Error Snackbar */}
+    <Snackbar
+      visible={!!error}
+      onDismiss={() => setError(null)}
+      duration={4000}
+      action={{
+        label: 'Dismiss',
+        onPress: () => setError(null),
+      }}
+      style={{ backgroundColor: colors.semantic.error.main }}
+    >
+      {error}
+    </Snackbar>
+  </View>
   );
 }
 
@@ -304,6 +500,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.secondary,
+  },
+  scrollView: {
+    flex: 1,
   },
   contentContainer: {
     paddingBottom: spacing.xxxl,
@@ -324,6 +523,139 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     ...typography.body.medium,
     color: colors.text.secondary,
+  },
+  
+  // Priority Card - What Needs Attention
+  priorityCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.background.primary,
+    ...elevation.md,
+    borderWidth: 2,
+  },
+  priorityCardOverdue: {
+    borderColor: colors.semantic.error.main,
+  },
+  priorityCardDueSoon: {
+    borderColor: colors.semantic.warning.main,
+  },
+  priorityContent: {
+    padding: spacing.lg,
+  },
+  priorityHeader: {
+    marginBottom: spacing.md,
+  },
+  priorityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.semantic.warning.light,
+  },
+  priorityBadgeIcon: {
+    fontSize: 14,
+    marginRight: spacing.xs,
+  },
+  priorityBadgeText: {
+    ...typography.caption.regular,
+    color: colors.semantic.warning.main,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  priorityTitle: {
+    ...typography.heading.h3,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
+  },
+  priorityDetails: {
+    marginBottom: spacing.lg,
+  },
+  priorityPersonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  priorityAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  priorityAvatarText: {
+    ...typography.heading.h3,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  priorityInfo: {
+    flex: 1,
+  },
+  priorityPersonName: {
+    ...typography.body.large,
+    color: colors.text.primary,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  priorityRole: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+  },
+  priorityAmountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  priorityAmountLabel: {
+    ...typography.body.medium,
+    color: colors.text.secondary,
+  },
+  priorityAmount: {
+    ...typography.amount.medium,
+    fontWeight: '700',
+  },
+  priorityDueDateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  priorityDueDateLabel: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+  },
+  priorityDueDateValue: {
+    ...typography.body.small,
+    color: colors.text.primary,
+    fontWeight: '600',
+  },
+  priorityActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  priorityButton: {
+    flex: 1,
+    borderRadius: borderRadius.md,
+  },
+  priorityButtonSecondary: {
+    flex: 1,
+    borderRadius: borderRadius.md,
+    borderColor: colors.primary,
+  },
+  priorityButtonLabel: {
+    ...typography.button.medium,
+  },
+  priorityButtonContent: {
+    paddingVertical: spacing.xs,
   },
   
   // Summary Grid
@@ -436,6 +768,37 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
   },
   
+  // Recent Activity Strip
+  activitySection: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  activityTitle: {
+    ...typography.label.large,
+    color: colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
+  },
+  activityScrollContent: {
+    paddingRight: spacing.lg,
+  },
+  activityChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.background.primary,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.background.tertiary,
+    ...elevation.xs,
+  },
+  activityChipText: {
+    ...typography.body.small,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  
   // Action Section
   actionSection: {
     paddingHorizontal: spacing.lg,
@@ -545,6 +908,17 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontWeight: '600',
     marginBottom: 2,
+  },
+  miniProgressBar: {
+    height: 3,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+  },
+  miniProgressFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
   },
   loanDate: {
     ...typography.caption.regular,

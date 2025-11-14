@@ -1,14 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { Text, Card, Button } from 'react-native-paper';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, RefreshControl, Platform } from 'react-native';
+import { Text, Card, Button, Snackbar } from 'react-native-paper';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
 import { formatCurrency, calculateLoanInterest, calculateSimpleInterest, calculateCompoundInterest } from '../../utils/calculations';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, getDaysUntilDue } from '../../utils/dateUtils';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { colors, typography, spacing, borderRadius, elevation } from '../../theme';
+
+// Web-compatible alert helper
+const showAlert = (title: string, message: string, buttons?: Array<{text: string, onPress?: () => void, style?: 'default' | 'cancel' | 'destructive'}>) => {
+  if (Platform.OS === 'web') {
+    if (buttons && buttons.length > 1) {
+      const confirmed = window.confirm(`${title}\n\n${message}`);
+      if (confirmed) {
+        const actionButton = buttons.find(b => b.style === 'destructive' || b.style === 'default');
+        if (actionButton?.onPress) actionButton.onPress();
+      }
+    } else {
+      window.alert(`${title}\n\n${message}`);
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 type LoanDetailRouteProp = RouteProp<RootStackParamList, 'LoanDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -18,7 +35,7 @@ export default function LoanDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { loanId } = route.params;
 
-  const { loans, repayments, fetchRepayments, getLoanCalculation, deleteLoan } = useLoanStore();
+  const { loans, repayments, fetchRepayments, getLoanCalculation, deleteLoan, loading } = useLoanStore();
   const { appUser } = useAuthStore();
 
   const loan = loans.find((l) => l.id === loanId);
@@ -26,19 +43,36 @@ export default function LoanDetailScreen() {
   const calculation = loan ? getLoanCalculation(loanId) : null;
 
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (loanId) {
-      fetchRepayments(loanId);
-    }
+    const loadData = async () => {
+      if (loanId) {
+        try {
+          await fetchRepayments(loanId);
+        } catch (err: any) {
+          setError(err.message || 'Failed to load repayments');
+        }
+      }
+    };
+    loadData();
   }, [loanId]);
+
+  const handleRefresh = async () => {
+    try {
+      setError(null);
+      await fetchRepayments(loanId);
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh data');
+    }
+  };
 
   const handleEdit = () => {
     navigation.navigate('EditLoan', { loanId });
   };
 
   const handleDelete = () => {
-    Alert.alert(
+    showAlert(
       'Delete Loan',
       'Are you sure you want to delete this loan? This action cannot be undone and will also delete all associated repayments.',
       [
@@ -59,10 +93,10 @@ export default function LoanDetailScreen() {
     try {
       setDeleting(true);
       await deleteLoan(loanId);
-      Alert.alert('Success', 'Loan deleted successfully');
+      showAlert('Success', 'Loan deleted successfully');
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to delete loan');
+      showAlert('Error', error.message || 'Failed to delete loan');
     } finally {
       setDeleting(false);
     }
@@ -92,8 +126,119 @@ export default function LoanDetailScreen() {
     closed: { color: colors.status.closed, bg: colors.semantic.neutral.light, label: 'Settled' },
   }[loan.status];
 
+  // Calculate Next Milestone
+  const nextMilestone = useMemo(() => {
+    // If loan is settled
+    if (calculation.current_outstanding === 0) {
+      return {
+        type: 'settled',
+        icon: '🎉',
+        title: 'Loan Fully Repaid!',
+        message: 'This loan has been completely settled.',
+        color: colors.semantic.success.main,
+        bgColor: colors.semantic.success.light,
+        showCTA: false,
+      };
+    }
+
+    // Calculate daily interest accumulation
+    const dailyInterestRate = loan.interest_type === 'none' ? 0 : (loan.interest_rate / 100 / 365);
+    const dailyInterest = calculation.current_outstanding * dailyInterestRate;
+
+    // If loan has a due date
+    if (loan.due_date) {
+      const daysUntil = getDaysUntilDue(loan.due_date);
+      
+      if (daysUntil < 0) {
+        // Overdue
+        return {
+          type: 'overdue',
+          icon: '⚠️',
+          title: 'Payment Overdue',
+          message: `This loan is ${Math.abs(daysUntil)} day${Math.abs(daysUntil) !== 1 ? 's' : ''} overdue. Outstanding: ${formatCurrency(calculation.current_outstanding, currency)}`,
+          color: colors.semantic.error.main,
+          bgColor: colors.semantic.error.light,
+          showCTA: true,
+          ctaText: 'Record Payment',
+        };
+      } else if (daysUntil === 0) {
+        // Due today
+        return {
+          type: 'due_today',
+          icon: '📅',
+          title: 'Due Today',
+          message: `Payment of ${formatCurrency(calculation.current_outstanding, currency)} is due today.`,
+          color: colors.semantic.error.main,
+          bgColor: colors.semantic.warning.light,
+          showCTA: true,
+          ctaText: 'Record Payment',
+        };
+      } else if (daysUntil <= 7) {
+        // Due soon
+        return {
+          type: 'due_soon',
+          icon: '⏰',
+          title: `Due in ${daysUntil} Day${daysUntil !== 1 ? 's' : ''}`,
+          message: `Payment due on ${formatDate(loan.due_date, dateFormat)}. Outstanding: ${formatCurrency(calculation.current_outstanding, currency)}`,
+          color: colors.semantic.warning.main,
+          bgColor: colors.semantic.warning.light,
+          showCTA: true,
+          ctaText: 'Record Payment',
+        };
+      } else {
+        // Due later
+        return {
+          type: 'due_later',
+          icon: '📆',
+          title: `Due in ${daysUntil} Days`,
+          message: `Next payment due ${formatDate(loan.due_date, dateFormat)}. ${dailyInterest > 0 ? `Interest accruing at ${formatCurrency(dailyInterest, currency)}/day.` : ''}`,
+          color: colors.semantic.info.main,
+          bgColor: colors.semantic.info.light,
+          showCTA: true,
+          ctaText: 'Record Payment',
+        };
+      }
+    }
+
+    // No due date - show interest accumulation info
+    if (loan.interest_type !== 'none' && dailyInterest > 0) {
+      // Calculate amount needed to clear current interest
+      const amountToClearInterest = calculation.interest_amount;
+      
+      return {
+        type: 'interest_accruing',
+        icon: '💰',
+        title: 'Interest Accruing',
+        message: `${formatCurrency(dailyInterest, currency)} per day. Pay ${formatCurrency(amountToClearInterest, currency)} to clear accrued interest.`,
+        color: colors.semantic.warning.main,
+        bgColor: colors.semantic.warning.light,
+        showCTA: true,
+        ctaText: 'Record Payment',
+      };
+    }
+
+    // No interest, no due date - general prompt
+    return {
+      type: 'active',
+      icon: '💵',
+      title: 'Active Loan',
+      message: `Outstanding balance: ${formatCurrency(calculation.current_outstanding, currency)}. Record payments as they're made.`,
+      color: colors.semantic.info.main,
+      bgColor: colors.semantic.info.light,
+      showCTA: true,
+      ctaText: 'Record Payment',
+    };
+  }, [loan, calculation, currency, dateFormat]);
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+    <ScrollView 
+      style={styles.scrollView} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={loading} onRefresh={handleRefresh} />
+      }
+    >
       {/* Header Card */}
       <Card style={styles.headerCard}>
         <Card.Content style={styles.headerContent}>
@@ -151,6 +296,47 @@ export default function LoanDetailScreen() {
         </Card.Content>
       </Card>
 
+      {/* Next Milestone Panel */}
+      <Card style={[styles.milestoneCard, { backgroundColor: nextMilestone.bgColor }]}>
+        <Card.Content style={styles.milestoneContent}>
+          <View style={styles.milestoneHeader}>
+            <Text style={styles.milestoneIcon}>{nextMilestone.icon}</Text>
+            <View style={styles.milestoneTextContainer}>
+              <Text style={[styles.milestoneTitle, { color: nextMilestone.color }]}>
+                {nextMilestone.title}
+              </Text>
+              <Text style={styles.milestoneMessage}>{nextMilestone.message}</Text>
+            </View>
+          </View>
+          {nextMilestone.showCTA && (
+            <View style={styles.milestoneActions}>
+              <Button
+                mode="contained"
+                onPress={() => navigation.navigate('CreateRepayment', { loanId: loan.id })}
+                style={[styles.milestoneButton, { backgroundColor: nextMilestone.color }]}
+                labelStyle={styles.milestoneButtonLabel}
+              >
+                {nextMilestone.ctaText}
+              </Button>
+              {(nextMilestone.type === 'overdue' || nextMilestone.type === 'due_soon' || nextMilestone.type === 'due_today') && (
+                <Button
+                  mode="outlined"
+                  onPress={() => {
+                    // TODO: Implement reminder functionality
+                    showAlert('Coming Soon', 'Reminder feature will be available in a future update');
+                  }}
+                  style={styles.milestoneButtonOutlined}
+                  labelStyle={[styles.milestoneButtonOutlinedLabel, { color: nextMilestone.color }]}
+                  textColor={nextMilestone.color}
+                >
+                  Send Reminder
+                </Button>
+              )}
+            </View>
+          )}
+        </Card.Content>
+      </Card>
+
       {/* Financial Summary */}
       <Card style={styles.summaryCard}>
         <Card.Content style={styles.summaryContent}>
@@ -198,47 +384,50 @@ export default function LoanDetailScreen() {
             <Text style={styles.detailValue}>{formatDate(loan.start_date, dateFormat)}</Text>
           </View>
           
-          {loan.interest_type !== 'none' && (
-            <>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Interest Type</Text>
-                <Text style={styles.detailValue}>
-                  {loan.interest_type === 'simple' 
-                    ? 'Simple' 
-                    : `Compound - ${loan.compounding_frequency ? 
-                        loan.compounding_frequency.charAt(0).toUpperCase() + loan.compounding_frequency.slice(1) 
-                        : 'Monthly'}`
-                  }
-                </Text>
-              </View>
-              
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Interest Rate</Text>
-                <Text style={styles.detailValue}>{loan.interest_rate}% per annum</Text>
-              </View>
-              
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Interest Till Date</Text>
-                <Text style={[styles.detailValue, { color: colors.semantic.warning.main, fontWeight: '600' }]}>
-                  {formatCurrency(calculation.interest_amount, currency)}
-                </Text>
-              </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Interest Type</Text>
+            <Text style={styles.detailValue}>
+              {loan.interest_type === 'none' 
+                ? 'No Interest'
+                : loan.interest_type === 'simple' 
+                  ? 'Simple' 
+                  : `Compound - ${loan.compounding_frequency ? 
+                      loan.compounding_frequency.charAt(0).toUpperCase() + loan.compounding_frequency.slice(1) 
+                      : 'Monthly'}`
+              }
+            </Text>
+          </View>
+          
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Interest Rate</Text>
+            <Text style={styles.detailValue}>
+              {loan.interest_type === 'none' ? '0%' : `${loan.interest_rate}%`} per annum
+            </Text>
+          </View>
+          
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Interest Till Date</Text>
+            <Text style={[styles.detailValue, { color: loan.interest_type === 'none' ? colors.text.secondary : colors.semantic.warning.main, fontWeight: '600' }]}>
+              {formatCurrency(calculation.interest_amount, currency)}
+            </Text>
+          </View>
 
-              {calculation.current_outstanding > 0 && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Daily Interest (Current Balance)</Text>
-                  <Text style={[styles.detailValue, { color: colors.semantic.error.main, fontWeight: '700' }]}>
-                    {formatCurrency(
+          {calculation.current_outstanding > 0 && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Daily Interest (Current Balance)</Text>
+              <Text style={[styles.detailValue, { color: loan.interest_type === 'none' ? colors.text.secondary : colors.semantic.error.main, fontWeight: '700' }]}>
+                {loan.interest_type === 'none' 
+                  ? `${formatCurrency(0, currency)} per day`
+                  : `${formatCurrency(
                       (() => {
                         const dailyRate = loan.interest_rate / 100 / 365;
                         return calculation.current_outstanding * dailyRate;
                       })(),
                       currency
-                    )} per day
-                  </Text>
-                </View>
-              )}
-            </>
+                    )} per day`
+                }
+              </Text>
+            </View>
           )}
           
           {loan.notes && (
@@ -441,6 +630,21 @@ export default function LoanDetailScreen() {
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
+
+    {/* Error Snackbar */}
+    <Snackbar
+      visible={!!error}
+      onDismiss={() => setError(null)}
+      duration={4000}
+      action={{
+        label: 'Dismiss',
+        onPress: () => setError(null),
+      }}
+      style={{ backgroundColor: colors.semantic.error.main }}
+    >
+      {error}
+    </Snackbar>
+    </View>
   );
 }
 
@@ -448,6 +652,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.secondary,
+  },
+  scrollView: {
+    flex: 1,
   },
   
   // Error State
@@ -598,6 +805,65 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
   },
   
+  // Milestone Card
+  milestoneCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.lg,
+    ...elevation.sm,
+  },
+  milestoneContent: {
+    padding: spacing.lg,
+  },
+  milestoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  milestoneIcon: {
+    fontSize: 32,
+    marginRight: spacing.md,
+    lineHeight: 36,
+  },
+  milestoneTextContainer: {
+    flex: 1,
+  },
+  milestoneTitle: {
+    ...typography.heading.h4,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  milestoneMessage: {
+    ...typography.body.medium,
+    color: colors.text.secondary,
+    lineHeight: 20,
+  },
+  milestoneActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  milestoneButton: {
+    flex: 1,
+    minWidth: 140,
+    borderRadius: borderRadius.md,
+  },
+  milestoneButtonLabel: {
+    ...typography.label.large,
+    fontWeight: '600',
+    color: colors.background.primary,
+  },
+  milestoneButtonOutlined: {
+    flex: 1,
+    minWidth: 140,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+  },
+  milestoneButtonOutlinedLabel: {
+    ...typography.label.large,
+    fontWeight: '600',
+  },
+  
   // Summary Card
   summaryCard: {
     marginHorizontal: spacing.lg,
@@ -737,8 +1003,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.md,
+    fontSize: 56,
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
     ...typography.heading.h4,

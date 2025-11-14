@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { Text, Card, Searchbar, Button, Chip } from 'react-native-paper';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { Text, Card, Searchbar, Button, Chip, Snackbar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLoanStore } from '../../store/loanStore';
@@ -15,16 +15,24 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function LoansListScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { loans, fetchLoans, loading } = useLoanStore();
+  const { loans, fetchLoans, loading, getLoanCalculation } = useLoanStore();
   const { appUser } = useAuthStore();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<LoanStatus | 'all'>('all');
   const [filterRole, setFilterRole] = useState<'all' | 'lender' | 'borrower'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'dueDate'>('date');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLoans();
+    const loadData = async () => {
+      try {
+        await fetchLoans();
+      } catch (err: any) {
+        setError(err.message || 'Failed to load loans');
+      }
+    };
+    loadData();
   }, []);
 
   const currency = appUser?.settings?.currency || 'USD';
@@ -71,6 +79,27 @@ export default function LoansListScreen() {
       }
     });
 
+  // Compute quick totals for header
+  const quickTotals = useMemo(() => {
+    const activeCount = loans.filter(l => l.status === 'active').length;
+    const overdueCount = loans.filter(l => l.status === 'overdue').length;
+    const settledCount = loans.filter(l => l.status === 'closed').length;
+    
+    const totalOutstanding = loans
+      .filter(l => l.status !== 'closed')
+      .reduce((sum, loan) => {
+        const calculation = getLoanCalculation(loan.id);
+        return sum + (calculation?.current_outstanding || 0);
+      }, 0);
+    
+    return {
+      activeCount,
+      overdueCount,
+      settledCount,
+      totalOutstanding,
+    };
+  }, [loans, getLoanCalculation]);
+
   const getStatusConfig = (status: LoanStatus) => {
     switch (status) {
       case 'active':
@@ -104,6 +133,12 @@ export default function LoansListScreen() {
     const statusConfig = getStatusConfig(item.status);
     const isLent = item.is_user_lender;
     const personName = isLent ? item.borrower_name : item.lender_name;
+    const calculation = getLoanCalculation(item.id);
+    
+    // Calculate progress percentage
+    const progressPercentage = calculation 
+      ? Math.min((calculation.total_repaid / calculation.total_amount_due) * 100, 100)
+      : 0;
 
     return (
       <TouchableOpacity
@@ -134,6 +169,31 @@ export default function LoansListScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Progress Section */}
+            {calculation && (
+              <View style={styles.progressSection}>
+                <View style={styles.progressTextRow}>
+                  <Text style={styles.progressText}>
+                    {formatCurrency(calculation.total_repaid, currency)} of {formatCurrency(calculation.total_amount_due, currency)}
+                  </Text>
+                  <Text style={styles.progressPercentage}>
+                    {Math.round(progressPercentage)}%
+                  </Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBarFill, 
+                      { 
+                        width: `${progressPercentage}%`,
+                        backgroundColor: progressPercentage === 100 ? colors.semantic.success.main : colors.primary
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+            )}
 
             {/* Amount Row */}
             <View style={styles.amountSection}>
@@ -204,6 +264,57 @@ export default function LoansListScreen() {
     <View style={styles.container}>
       {/* Header with Search and Filters */}
       <View style={styles.header}>
+        {/* Quick Totals Summary */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryItem}>
+            <View style={[styles.summaryIconCircle, { backgroundColor: colors.semantic.success.light }]}>
+              <Text style={styles.summaryIcon}>✓</Text>
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={styles.summaryCount}>{quickTotals.activeCount}</Text>
+              <Text style={styles.summaryLabel}>Active</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryItem}>
+            <View style={[styles.summaryIconCircle, { backgroundColor: colors.semantic.error.light }]}>
+              <Text style={styles.summaryIcon}>⚠</Text>
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={styles.summaryCount}>{quickTotals.overdueCount}</Text>
+              <Text style={styles.summaryLabel}>Overdue</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryItem}>
+            <View style={[styles.summaryIconCircle, { backgroundColor: colors.semantic.neutral.light }]}>
+              <Text style={styles.summaryIcon}>◉</Text>
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={styles.summaryCount}>{quickTotals.settledCount}</Text>
+              <Text style={styles.summaryLabel}>Settled</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryItem}>
+            <View style={[styles.summaryIconCircle, { backgroundColor: colors.primaryLight }]}>
+              <Text style={styles.summaryIcon}>₹</Text>
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={[styles.summaryCount, { fontSize: 13 }]} numberOfLines={1}>
+                {formatCurrency(quickTotals.totalOutstanding, currency).replace(/\.\d{2}$/, '')}
+              </Text>
+              <Text style={styles.summaryLabel}>Outstanding</Text>
+            </View>
+          </View>
+        </View>
+
         <Searchbar
           placeholder="Search by name, tags, or notes..."
           onChangeText={setSearchQuery}
@@ -214,10 +325,16 @@ export default function LoansListScreen() {
           placeholderTextColor={colors.text.tertiary}
         />
         
-        {/* Status Filters */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Status</Text>
-          <View style={styles.filterRow}>
+        {/* Compact Horizontal Filter Chips */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScrollContent}
+          style={styles.filterScroll}
+        >
+          {/* Status Group */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterGroupLabel}>Status:</Text>
             <FilterChip
               active={filterStatus === 'all'}
               onPress={() => setFilterStatus('all')}
@@ -239,12 +356,12 @@ export default function LoansListScreen() {
               label="Settled"
             />
           </View>
-        </View>
 
-        {/* Role Filters */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Type</Text>
-          <View style={styles.filterRow}>
+          <View style={styles.filterGroupDivider} />
+
+          {/* Type Group */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterGroupLabel}>Type:</Text>
             <FilterChip
               active={filterRole === 'all'}
               onPress={() => setFilterRole('all')}
@@ -261,12 +378,12 @@ export default function LoansListScreen() {
               label="Borrowed"
             />
           </View>
-        </View>
 
-        {/* Sort Options */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Sort By</Text>
-          <View style={styles.filterRow}>
+          <View style={styles.filterGroupDivider} />
+
+          {/* Sort Group */}
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterGroupLabel}>Sort:</Text>
             <FilterChip
               active={sortBy === 'date'}
               onPress={() => setSortBy('date')}
@@ -283,7 +400,7 @@ export default function LoansListScreen() {
               label="Due Soon"
             />
           </View>
-        </View>
+        </ScrollView>
 
         {/* Results Count */}
         {searchQuery || filterStatus !== 'all' || filterRole !== 'all' || sortBy !== 'date' ? (
@@ -356,6 +473,20 @@ export default function LoansListScreen() {
       >
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        visible={!!error}
+        onDismiss={() => setError(null)}
+        duration={4000}
+        action={{
+          label: 'Dismiss',
+          onPress: () => setError(null),
+        }}
+        style={{ backgroundColor: colors.semantic.error.main }}
+      >
+        {error}
+      </Snackbar>
     </View>
   );
 }
@@ -373,6 +504,55 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     ...elevation.sm,
   },
+  
+  // Summary Row
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.lg,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.md,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  summaryIcon: {
+    fontSize: 16,
+  },
+  summaryTextContainer: {
+    flex: 1,
+  },
+  summaryCount: {
+    ...typography.body.large,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  summaryLabel: {
+    ...typography.caption.regular,
+    color: colors.text.secondary,
+    fontSize: 10,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colors.background.tertiary,
+    marginHorizontal: spacing.xs,
+  },
+  
   searchBar: {
     backgroundColor: colors.background.tertiary,
     borderRadius: borderRadius.md,
@@ -383,7 +563,56 @@ const styles = StyleSheet.create({
     ...typography.body.medium,
   },
   
-  // Filters
+  // Horizontal Filter Layout
+  filterScroll: {
+    marginBottom: spacing.md,
+  },
+  filterScrollContent: {
+    paddingRight: spacing.lg,
+  },
+  filterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: spacing.md,
+  },
+  filterGroupLabel: {
+    ...typography.label.small,
+    color: colors.text.tertiary,
+    marginRight: spacing.sm,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  filterGroupDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.background.tertiary,
+    marginHorizontal: spacing.sm,
+  },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.background.tertiary,
+    borderWidth: 1,
+    borderColor: colors.ui.border,
+    marginRight: spacing.xs,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    ...typography.label.small,
+    color: colors.text.secondary,
+    fontSize: 12,
+  },
+  filterChipTextActive: {
+    color: colors.text.inverse,
+    fontWeight: '600',
+  },
+  
+  // Old filter styles (kept for compatibility)
   filterSection: {
     marginBottom: spacing.md,
   },
@@ -398,26 +627,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     flexWrap: 'wrap',
-  },
-  filterChip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.background.tertiary,
-    borderWidth: 1,
-    borderColor: colors.ui.border,
-  },
-  filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterChipText: {
-    ...typography.label.medium,
-    color: colors.text.secondary,
-  },
-  filterChipTextActive: {
-    color: colors.text.inverse,
-    fontWeight: '600',
   },
   
   // Results Bar
@@ -524,6 +733,38 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
   },
   
+  // Progress Section
+  progressSection: {
+    marginBottom: spacing.md,
+  },
+  progressTextRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  progressText: {
+    ...typography.caption.regular,
+    color: colors.text.secondary,
+    fontSize: 11,
+  },
+  progressPercentage: {
+    ...typography.caption.regular,
+    color: colors.text.secondary,
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: borderRadius.full,
+  },
+  
   // Amount Section
   amountSection: {
     backgroundColor: colors.background.tertiary,
@@ -572,7 +813,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   emptyIcon: {
-    fontSize: 64,
+    fontSize: 56,
     marginBottom: spacing.lg,
   },
   emptyTitle: {

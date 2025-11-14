@@ -25,6 +25,7 @@ interface LoanState {
   createTransaction: (transaction: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   calculateDashboardMetrics: () => void;
   getLoanCalculation: (loanId: string) => LoanCalculation | null;
+  getRecentActivity: () => Array<{loan: Loan, lastRepayment?: Repayment}>;
   subscribeToLoans: () => () => void;
 }
 
@@ -87,7 +88,8 @@ export const useLoanStore = create<LoanState>((set, get) => ({
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error fetching loans:', error);
-      // Keep existing loans on error
+      // Keep existing loans on error, but throw to allow UI to show error
+      throw new Error('Failed to load loans. Please check your connection and try again.');
     } finally {
       set({ loading: false });
     }
@@ -424,6 +426,33 @@ export const useLoanStore = create<LoanState>((set, get) => ({
 
     const loanRepayments = repayments[loanId] || [];
     return calculateLoanDetails(loan, loanRepayments);
+  },
+
+  getRecentActivity: () => {
+    const { loans, repayments } = get();
+    
+    // Create array of loans with their most recent activity
+    const loansWithActivity = loans.map(loan => {
+      const loanRepayments = repayments[loan.id] || [];
+      const lastRepayment = loanRepayments.length > 0 ? loanRepayments[0] : undefined;
+      
+      // Determine most recent activity date
+      const activityDate = lastRepayment 
+        ? new Date(lastRepayment.payment_date)
+        : new Date(loan.created_at);
+      
+      return {
+        loan,
+        lastRepayment,
+        activityDate,
+      };
+    });
+    
+    // Sort by most recent activity and return top 3
+    return loansWithActivity
+      .sort((a, b) => b.activityDate.getTime() - a.activityDate.getTime())
+      .slice(0, 3)
+      .map(({ loan, lastRepayment }) => ({ loan, lastRepayment }));
   },
 
   subscribeToLoans: () => {

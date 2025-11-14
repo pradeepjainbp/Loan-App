@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Text, TextInput, Button, SegmentedButtons, Card, useTheme } from 'react-native-paper';
+import React, { useState, useMemo } from 'react';
+import { View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { Text, TextInput, Button, SegmentedButtons, Card, useTheme, Chip } from 'react-native-paper';
 import DatePicker from '../../components/DatePicker';
 import { useLoanStore } from '../../store/loanStore';
 import { useAuthStore } from '../../store/authStore';
 import { Transaction, TransactionType } from '../../types';
 import { getTransactionSummary } from '../../utils/transactionCalculations';
 import { formatCurrency } from '../../utils/calculations';
+import { colors, spacing, borderRadius, typography } from '../../theme';
 
 interface AddTransactionScreenProps {
   route: any;
@@ -33,6 +34,62 @@ export default function AddTransactionScreen({
   const [notes, setNotes] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
+
+  // Smart suggestion calculations
+  const smartSuggestions = useMemo(() => {
+    if (!summary || !loan) return [];
+
+    const suggestions = [];
+
+    // Suggestion 1: Pay Interest Only
+    if (loan.interest_type !== 'none' && summary.interestOutstanding > 0) {
+      suggestions.push({
+        id: 'interest_only',
+        label: 'Interest Only',
+        icon: '💰',
+        amount: summary.interestOutstanding,
+        interestPortion: summary.interestOutstanding,
+        description: `Pay ${formatCurrency(summary.interestOutstanding, currency)} interest`,
+      });
+    }
+
+    // Suggestion 2: Half Balance
+    if (summary.outstandingBalance > 0) {
+      const halfAmount = summary.outstandingBalance / 2;
+      const halfInterest = Math.min(summary.interestOutstanding, halfAmount);
+      suggestions.push({
+        id: 'half_balance',
+        label: 'Half Balance',
+        icon: '⚖️',
+        amount: halfAmount,
+        interestPortion: halfInterest,
+        description: `Pay ${formatCurrency(halfAmount, currency)}`,
+      });
+    }
+
+    // Suggestion 3: Clear Balance (Full Payment)
+    if (summary.outstandingBalance > 0) {
+      suggestions.push({
+        id: 'clear_balance',
+        label: 'Clear Balance',
+        icon: '✅',
+        amount: summary.outstandingBalance,
+        interestPortion: summary.interestOutstanding,
+        description: `Pay ${formatCurrency(summary.outstandingBalance, currency)} (Full)`,
+      });
+    }
+
+    return suggestions;
+  }, [summary, loan, currency]);
+
+  const handleSuggestionPress = (suggestion: typeof smartSuggestions[0]) => {
+    setAmount(suggestion.amount.toFixed(2));
+    setInterestPortion(suggestion.interestPortion.toFixed(2));
+    // Auto-fill particulars if empty
+    if (!particulars.trim()) {
+      setParticulars(`Payment - ${suggestion.label}`);
+    }
+  };
 
   if (!loan || !summary) {
     return (
@@ -129,6 +186,37 @@ export default function AddTransactionScreen({
         placeholder="0.00"
       />
 
+      {/* Smart Suggestions - Only show for payment type */}
+      {transactionType === 'payment' && smartSuggestions.length > 0 && (
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsLabel}>Quick Amount</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.suggestionsScroll}
+            contentContainerStyle={styles.suggestionsContent}
+          >
+            {smartSuggestions.map((suggestion) => (
+              <TouchableOpacity
+                key={suggestion.id}
+                onPress={() => handleSuggestionPress(suggestion)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.suggestionChip}>
+                  <Text style={styles.suggestionIcon}>{suggestion.icon}</Text>
+                  <View style={styles.suggestionTextContainer}>
+                    <Text style={styles.suggestionLabel}>{suggestion.label}</Text>
+                    <Text style={styles.suggestionAmount}>
+                      {formatCurrency(suggestion.amount, currency)}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Interest Portion (for payments) */}
       {transactionType === 'payment' && (
         <TextInput
@@ -220,6 +308,59 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: 20,
     marginBottom: 20,
+  },
+  
+  // Smart Suggestions
+  suggestionsContainer: {
+    marginBottom: spacing.lg,
+  },
+  suggestionsLabel: {
+    ...typography.label.medium,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
+    fontWeight: '600',
+  },
+  suggestionsScroll: {
+    marginHorizontal: -spacing.xs,
+  },
+  suggestionsContent: {
+    paddingHorizontal: spacing.xs,
+    gap: spacing.sm,
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.primary,
+    borderWidth: 1.5,
+    borderColor: colors.ui.divider,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginRight: spacing.sm,
+    minHeight: 68,
+    shadowColor: colors.ui.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  suggestionIcon: {
+    fontSize: 24,
+    marginRight: spacing.md,
+  },
+  suggestionTextContainer: {
+    alignItems: 'flex-start',
+  },
+  suggestionLabel: {
+    ...typography.label.small,
+    color: colors.text.secondary,
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  suggestionAmount: {
+    ...typography.body.large,
+    color: colors.text.primary,
+    fontWeight: '700',
   },
 });
 
