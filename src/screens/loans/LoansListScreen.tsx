@@ -61,6 +61,10 @@ export default function LoansListScreen() {
         case 'amount':
           return b.principal_amount - a.principal_amount;
         case 'dueDate':
+          // Handle null due dates - put them at the end
+          if (!a.due_date && !b.due_date) return 0;
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
           return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
         default:
           return 0;

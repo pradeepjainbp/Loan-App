@@ -45,9 +45,11 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setError('');
+      setMode('google');
       await signInWithGoogle();
     } catch (err: any) {
       setError(err.message || 'Failed to sign in with Google');
+      setMode('phone');
     }
   };
 

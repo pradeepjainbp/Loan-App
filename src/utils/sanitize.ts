@@ -52,19 +52,19 @@ export function sanitizePercentage(input: string | number | undefined | null): n
 
 /**
  * Sanitize date string
- * Ensures valid ISO date format
+ * Ensures valid ISO date format, returns null for empty/invalid optional dates
  */
-export function sanitizeDate(input: string | undefined | null): string {
-  if (!input) return new Date().toISOString();
+export function sanitizeDate(input: string | undefined | null): string | null {
+  if (!input) return null;
   
   try {
     const date = new Date(input);
     if (isNaN(date.getTime())) {
-      return new Date().toISOString();
+      return null;
     }
     return date.toISOString();
   } catch {
-    return new Date().toISOString();
+    return null;
   }
 }
 
@@ -109,12 +109,11 @@ export function sanitizeStringArray(input: string[] | undefined | null): string[
  * Validate and sanitize loan data
  */
 export function sanitizeLoanData(data: any): any {
-  return {
+  const sanitized: any = {
     lender_name: sanitizeText(data.lender_name),
     borrower_name: sanitizeText(data.borrower_name),
     principal_amount: sanitizeCurrency(data.principal_amount),
-    start_date: sanitizeDate(data.start_date),
-    due_date: sanitizeDate(data.due_date),
+    start_date: sanitizeDate(data.start_date) || new Date().toISOString(),
     interest_type: data.interest_type, // Enum, validated elsewhere
     interest_rate: sanitizePercentage(data.interest_rate),
     compounding_frequency: data.compounding_frequency, // Enum
@@ -123,6 +122,14 @@ export function sanitizeLoanData(data: any): any {
     status: data.status, // Enum
     is_user_lender: Boolean(data.is_user_lender),
   };
+  
+  // Only include due_date if it's provided
+  const sanitizedDueDate = sanitizeDate(data.due_date);
+  if (sanitizedDueDate) {
+    sanitized.due_date = sanitizedDueDate;
+  }
+  
+  return sanitized;
 }
 
 /**
