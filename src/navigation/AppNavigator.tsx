@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 
 // Import screens (we'll create these next)
@@ -51,7 +52,9 @@ function MainTabs() {
         component={DashboardScreen}
         options={{
           tabBarLabel: 'Dashboard',
-          tabBarIcon: () => <></>, // We'll add icons later
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="view-dashboard" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -59,7 +62,9 @@ function MainTabs() {
         component={LoansListScreen}
         options={{
           tabBarLabel: 'Loans',
-          tabBarIcon: () => <></>,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="cash-multiple" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -67,7 +72,9 @@ function MainTabs() {
         component={SettingsScreen}
         options={{
           tabBarLabel: 'Settings',
-          tabBarIcon: () => <></>,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="cog" size={size} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>
@@ -76,10 +83,6 @@ function MainTabs() {
 
 export default function AppNavigator() {
   const { user, initialized } = useAuthStore();
-
-  // Add debug logging
-  console.log('AppNavigator - user:', user);
-  console.log('AppNavigator - initialized:', initialized);
 
   if (!initialized) {
     return null; // Or a loading screen

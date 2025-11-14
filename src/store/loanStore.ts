@@ -104,47 +104,27 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   createLoan: async (loanData) => {
     try {
       set({ loading: true });
-      console.log('📝 [LoanStore] Starting loan creation...');
-      console.log('📋 [LoanStore] Loan data:', loanData);
 
       // First, verify session is still valid
-      console.log('🔍 [LoanStore] Verifying session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
-        console.error('❌ [LoanStore] Session verification error:', sessionError);
         throw new Error('Session verification failed: ' + sessionError.message);
       }
 
       if (!session) {
-        const errorMsg = 'Session expired. Please log in again.';
-        console.error('❌ [LoanStore]', errorMsg);
-        throw new Error(errorMsg);
+        throw new Error('Session expired. Please log in again.');
       }
-
-      console.log('✅ [LoanStore] Session valid:', session.user.email);
 
       // Get current user
-      console.log('👤 [LoanStore] Fetching current user...');
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-      console.log('👤 [LoanStore] Current user:', user?.email || 'NOT FOUND');
-      if (userError) {
-        console.error('❌ [LoanStore] User fetch error:', userError);
-      }
-
       if (!user) {
-        const errorMsg = 'User not authenticated - session may have expired. Please log in again.';
-        console.error('❌ [LoanStore]', errorMsg);
-        throw new Error(errorMsg);
+        throw new Error('User not authenticated - session may have expired. Please log in again.');
       }
-
-      console.log('✅ [LoanStore] User authenticated:', user.id);
-      console.log('📤 [LoanStore] Inserting loan with user_id:', user.id);
 
       const data = await retryWithBackoff(async () => {
         const insertData = { ...loanData, user_id: user.id };
-        console.log('📤 [LoanStore] Insert payload:', insertData);
 
         const { data, error } = await supabase
           .from('loans')
@@ -153,18 +133,11 @@ export const useLoanStore = create<LoanState>((set, get) => ({
           .single();
 
         if (error) {
-          console.error('❌ [LoanStore] Insert error:', error);
-          console.error('❌ [LoanStore] Error code:', error.code);
-          console.error('❌ [LoanStore] Error message:', error.message);
-          console.error('❌ [LoanStore] Error details:', error.details);
           throw error;
         }
 
-        console.log('✅ [LoanStore] Insert successful:', data);
         return data;
       }, { maxRetries: 3, delayMs: 1000 });
-
-      console.log('✅ [LoanStore] Loan created successfully:', data.id);
 
       set((state) => ({
         loans: [data, ...state.loans],
@@ -173,9 +146,6 @@ export const useLoanStore = create<LoanState>((set, get) => ({
       get().calculateDashboardMetrics();
       return data;
     } catch (error: any) {
-      console.error('❌ [LoanStore] Loan creation failed:', error);
-      console.error('❌ [LoanStore] Error message:', error?.message);
-      console.error('❌ [LoanStore] Error details:', error?.details);
       throw error;
     } finally {
       set({ loading: false });
@@ -282,7 +252,6 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   updateRepayment: async (id: string, updates: Partial<Repayment>) => {
     try {
       set({ loading: true });
-      console.log('📝 [LoanStore] Updating repayment:', id, updates);
 
       // Find the loan_id from existing repayments
       let loanId: string | null = null;
@@ -340,7 +309,6 @@ export const useLoanStore = create<LoanState>((set, get) => ({
   createTransaction: async (transactionData) => {
     try {
       set({ loading: true });
-      console.log('📝 [LoanStore] Creating transaction:', transactionData);
 
       const data = await retryWithBackoff(async () => {
         const { data, error } = await supabase
@@ -364,7 +332,6 @@ export const useLoanStore = create<LoanState>((set, get) => ({
         },
       }));
 
-      console.log('✅ [LoanStore] Transaction created:', data.id);
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error creating transaction:', error);
