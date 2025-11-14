@@ -471,16 +471,21 @@ export default function LoanDetailScreen() {
               <Text style={styles.emptyText}>Record the first repayment to track progress</Text>
             </View>
           ) : (
-            <View style={styles.tableContainer}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderCell, styles.dateColumn]}>Date</Text>
-                <Text style={[styles.tableHeaderCell, styles.particularsColumn]}>Particulars</Text>
-                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Interest</Text>
-                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Paid</Text>
-                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Balance</Text>
-                <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Int Per Day</Text>
-              </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={true}
+              style={styles.tableScrollView}
+            >
+              <View style={styles.tableContainer}>
+                {/* Table Header */}
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderCell, styles.dateColumn]}>Date</Text>
+                  <Text style={[styles.tableHeaderCell, styles.particularsColumn]}>Particulars</Text>
+                  <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Interest</Text>
+                  <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Paid</Text>
+                  <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Balance</Text>
+                  <Text style={[styles.tableHeaderCell, styles.amountColumn]}>Int Per Day</Text>
+                </View>
               
               {/* Account Opening Row */}
               <View style={styles.tableRow}>
@@ -583,6 +588,7 @@ export default function LoanDetailScreen() {
                 });
               })()}
             </View>
+            </ScrollView>
           )}
         </Card.Content>
       </Card>
@@ -1070,11 +1076,15 @@ const styles = StyleSheet.create({
   },
   
   // Table Styles
+  tableScrollView: {
+    marginHorizontal: -spacing.lg,
+  },
   tableContainer: {
     borderWidth: 1,
     borderColor: colors.ui.border,
     borderRadius: borderRadius.md,
     overflow: 'hidden',
+    minWidth: 700, // Ensures table doesn't crumble
   },
   tableHeader: {
     flexDirection: 'row',
@@ -1089,6 +1099,7 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontWeight: '700',
     textAlign: 'left',
+    paddingHorizontal: spacing.xs,
   },
   tableRow: {
     flexDirection: 'row',
@@ -1105,15 +1116,19 @@ const styles = StyleSheet.create({
     ...typography.body.small,
     color: colors.text.primary,
     textAlign: 'left',
+    paddingHorizontal: spacing.xs,
   },
   dateColumn: {
-    flex: 1.2,
+    width: 100,
+    minWidth: 100,
   },
   particularsColumn: {
-    flex: 2,
+    width: 180,
+    minWidth: 180,
   },
   amountColumn: {
-    flex: 1,
+    width: 95,
+    minWidth: 95,
     textAlign: 'right',
   },
   
