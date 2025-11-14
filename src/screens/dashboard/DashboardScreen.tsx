@@ -14,7 +14,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DashboardScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { dashboardMetrics, fetchLoans, loading, subscribeToLoans } = useLoanStore();
+  const { dashboardMetrics, fetchLoans, loading, subscribeToLoans, getLoanCalculation } = useLoanStore();
   const { appUser } = useAuthStore();
 
   useEffect(() => {
@@ -137,7 +137,11 @@ export default function DashboardScreen() {
 
           <Card style={[styles.alertCard, styles.overdueCard]}>
             <Card.Content style={styles.alertCardContent}>
-              {dashboardMetrics.overdue_loans.slice(0, 3).map((loan, index) => (
+              {dashboardMetrics.overdue_loans.slice(0, 3).map((loan, index) => {
+                const calculation = getLoanCalculation(loan.id);
+                const outstandingAmount = calculation?.current_outstanding || loan.principal_amount;
+                
+                return (
                 <TouchableOpacity
                   key={loan.id}
                   style={[
@@ -164,11 +168,11 @@ export default function DashboardScreen() {
                       </View>
                     </View>
                     <Text style={[styles.loanAmount, { color: colors.semantic.error.main }]}>
-                      {formatCurrency(loan.principal_amount, currency)}
+                      {formatCurrency(outstandingAmount, currency)}
                     </Text>
                   </View>
                 </TouchableOpacity>
-              ))}
+              );})}
             </Card.Content>
           </Card>
         </View>
@@ -186,7 +190,11 @@ export default function DashboardScreen() {
 
           <Card style={[styles.alertCard, styles.dueSoonCard]}>
             <Card.Content style={styles.alertCardContent}>
-              {dashboardMetrics.loans_due_7_days.slice(0, 3).map((loan, index) => (
+              {dashboardMetrics.loans_due_7_days.slice(0, 3).map((loan, index) => {
+                const calculation = getLoanCalculation(loan.id);
+                const outstandingAmount = calculation?.current_outstanding || loan.principal_amount;
+                
+                return (
                 <TouchableOpacity
                   key={loan.id}
                   style={[
@@ -212,12 +220,12 @@ export default function DashboardScreen() {
                         </Text>
                       </View>
                     </View>
-                    <Text style={[styles.loanAmount, { color: colors.semantic.warning.main }]}>
-                      {formatCurrency(loan.principal_amount, currency)}
+                    <Text style={[styles.loanAmount, { color: colors.semantic.info.main }]}>
+                      {formatCurrency(outstandingAmount, currency)}
                     </Text>
                   </View>
                 </TouchableOpacity>
-              ))}
+              );})}
             </Card.Content>
           </Card>
         </View>

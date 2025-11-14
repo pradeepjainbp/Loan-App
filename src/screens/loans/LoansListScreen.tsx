@@ -146,7 +146,7 @@ export default function LoansListScreen() {
               <View style={styles.amountRow}>
                 <Text style={styles.amountLabel}>Due Date</Text>
                 <Text style={styles.amountValue}>
-                  {formatDate(item.due_date, dateFormat)}
+                  {item.due_date ? formatDate(item.due_date, dateFormat) : 'No due date'}
                 </Text>
               </View>
               {item.interest_type !== 'none' && (

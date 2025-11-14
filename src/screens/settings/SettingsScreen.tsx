@@ -65,24 +65,18 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
-    console.log('[Settings] Sign out button clicked');
-    
     // Use window.confirm for web compatibility
     const confirmed = typeof window !== 'undefined' 
       ? window.confirm('Are you sure you want to sign out?')
       : true;
     
     if (!confirmed) {
-      console.log('[Settings] Sign out cancelled');
       return;
     }
     
     try {
-      console.log('[Settings] Calling signOut...');
       await signOut();
-      console.log('[Settings] Sign out successful');
     } catch (error: any) {
-      console.error('[Settings] Sign out error:', error);
       if (typeof window !== 'undefined') {
         window.alert('Error: ' + (error.message || 'Failed to sign out'));
       }
@@ -194,7 +188,6 @@ export default function SettingsScreen() {
       
       showAlert('Account Deleted', 'Your account and all data have been permanently deleted.');
     } catch (error: any) {
-      console.error('Delete account error:', error);
       showAlert('Error', error.message || 'Failed to delete account. Please contact support.');
     }
   };

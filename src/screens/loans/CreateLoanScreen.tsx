@@ -153,12 +153,10 @@ export default function CreateLoanScreen() {
   const submitLoan = async (loanData: any) => {
     try {
       setLoading(true);
-      console.log('Creating loan with data:', loanData);
       await createLoan(loanData);
       showAlert('Success', 'Loan created successfully');
       navigation.goBack();
     } catch (error: any) {
-      console.error('Loan creation error:', error);
       const errorMessage = error?.message || error?.details || 'Failed to create loan';
       showAlert('Error', errorMessage);
     } finally {

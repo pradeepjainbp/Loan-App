@@ -58,6 +58,32 @@ export const useLoanStore = create<LoanState>((set, get) => ({
       }, { maxRetries: 3, delayMs: 1000 });
 
       set({ loans: data || [] });
+      
+      // Fetch all repayments for accurate dashboard metrics
+      if (data && data.length > 0) {
+        const repaymentsPromises = data.map(loan => 
+          supabase
+            .from('repayments')
+            .select('*')
+            .eq('loan_id', loan.id)
+            .order('payment_date', { ascending: false })
+        );
+        
+        const repaymentsResults = await Promise.all(repaymentsPromises);
+        const repaymentsMap: Record<string, Repayment[]> = {};
+        
+        data.forEach((loan, index) => {
+          const result = repaymentsResults[index];
+          if (result.data) {
+            repaymentsMap[loan.id] = result.data;
+          }
+        });
+        
+        set((state) => ({
+          repayments: { ...state.repayments, ...repaymentsMap },
+        }));
+      }
+      
       get().calculateDashboardMetrics();
     } catch (error) {
       console.error('Error fetching loans:', error);
