@@ -39,10 +39,18 @@ export const useLoanStore = create<LoanState>((set, get) => ({
     try {
       set({ loading: true });
 
+      // Get current user to scope queries
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const data = await retryWithBackoff(async () => {
         const { data, error } = await supabase
           .from('loans')
           .select('*')
+          .eq('user_id', user.id) // CRITICAL: Scope to current user only
           .order('created_at', { ascending: false });
 
         if (error) throw error;
